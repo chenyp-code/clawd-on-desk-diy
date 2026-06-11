@@ -33,6 +33,7 @@ const {
 const {
   NOTIFICATION_DEFAULT_SECONDS,
   UPDATE_DEFAULT_SECONDS,
+  COMPLETION_DEFAULT_SECONDS,
   PERMISSION_DEFAULT_SECONDS,
   MAX_AUTO_CLOSE_SECONDS,
 } = require("./bubble-policy");
@@ -135,6 +136,15 @@ const SCHEMA = {
   updateBubbleAutoCloseSeconds: {
     type: "number",
     default: UPDATE_DEFAULT_SECONDS,
+    validate: (v) => Number.isInteger(v) && v >= 0 && v <= MAX_AUTO_CLOSE_SECONDS,
+  },
+  // Completion bubble fires on a real task finish (Stop after #406 gate).
+  // Auto-closes after this many seconds; user clicks "好的" / OK to dismiss
+  // sooner. 0 disables. DND / global hideBubbles do NOT suppress this kind —
+  // see bubble-policy.js bypassDnd.
+  completionBubbleAutoCloseSeconds: {
+    type: "number",
+    default: COMPLETION_DEFAULT_SECONDS,
     validate: (v) => Number.isInteger(v) && v >= 0 && v <= MAX_AUTO_CLOSE_SECONDS,
   },
   soundMuted: { type: "boolean", default: false },
@@ -394,6 +404,13 @@ function migrate(raw) {
     if (out.updateBubbleAutoCloseSeconds === undefined) {
       out.updateBubbleAutoCloseSeconds = out.hideBubbles ? 0 : UPDATE_DEFAULT_SECONDS;
     }
+  }
+  // Completion backfill is NOT gated on hideBubbles — completion is causal
+  // feedback that survives the global hide switch. New installs get the
+  // default; upgrades from a build that never had this key also get the
+  // default (no way to infer a prior user choice).
+  if (out.completionBubbleAutoCloseSeconds === undefined) {
+    out.completionBubbleAutoCloseSeconds = COMPLETION_DEFAULT_SECONDS;
   }
   // v1 -> v2 historical backfill for the short-lived Pi permission subgate.
   // v4 below resets it off again because Pi is state-only.

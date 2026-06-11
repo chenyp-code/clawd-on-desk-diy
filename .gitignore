@@ -69,6 +69,9 @@ docs/**
 .*-tune.md
 
 
+# Local design assets (not for distribution)
+design/
+
 # Calico animation studio (WIP pipeline, not for distribution)
 calico-studio/
 
@@ -103,6 +106,7 @@ scripts/*
 !scripts/export-agent-icons.js
 !scripts/verify-sidecar-binaries.js
 !scripts/fetch-sidecar-binaries.js
+!scripts/build-windows.sh
 
 # oh-my-cursor state
 .omc/

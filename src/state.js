@@ -1019,6 +1019,28 @@ function clearAllCompletionDebounces() {
   pendingCompletionTimers.clear();
 }
 
+// Fire the completion bubble hook for a real task finish. The bubble module
+// is fire-and-forget (returns a Promise that nobody awaits in v1) and uses
+// bubble-policy.js bypassDnd so DND / hideBubbles don't suppress it.
+// sessionTitle is the user's prompt first line (≤40 chars, secret-stripped)
+// — see hooks/clawd-hook.js extractPromptTitle. Safe to call from both
+// promoteCompletion and the immediate-celebration branch in updateSession.
+// Callers must pass the title explicitly because the immediate branch fires
+// BEFORE sessions.set, so sessions.get(sessionId) would return null there.
+// startedAt anchors the per-turn duration chip; null/undefined yields no
+// durationMs in the payload and the renderer hides the chip.
+function fireCompletionBubble(sessionId, sessionTitle, startedAt) {
+  if (typeof ctx.showCompletionBubble !== "function") return;
+  const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : null;
+  try {
+    ctx.showCompletionBubble({
+      sessionId,
+      prompt: sessionTitle || "",
+      durationMs,
+    });
+  } catch {}
+}
+
 // Debounce window elapsed with no forward progress → the turn really ended.
 // Replay the real Stop the gate withheld: append a Stop event (so the badge →
 // "done" and the Telegram completion fires exactly once, re-asserting a Stop
@@ -1034,6 +1056,11 @@ function promoteCompletion(sessionId) {
   session.displayHint = null;
   session.awaitingInputSinceStop = true;
   emitSessionSnapshot({ force: true });
+  // Fire the completion bubble AFTER the snapshot so dashboard/HUD/Telegram
+  // see the same "done" tick before the user-facing toast appears. The bubble
+  // itself bypasses DND by policy (bubble-policy.js bypassDnd); main.js wires
+  // the ctx.showCompletionBubble hook.
+  fireCompletionBubble(sessionId, session.sessionTitle, session.startedAt);
   if (hasPermissionAnimationLock()) {
     const display = resolveDisplayState();
     setState(display, getSvgOverride(display));
@@ -1197,6 +1224,13 @@ function updateSession(sessionId, state, event, opts = {}) {
   // ever been named keeps that name until the user explicitly renames it.
   const srcSessionTitle = normalizeTitle(sessionTitle) || (existing && existing.sessionTitle) || null;
   const srcContextUsage = normalizeContextUsage(contextUsage) || (existing && existing.contextUsage) || null;
+  // Per-turn timer anchor for the completion bubble's duration chip. Set on
+  // UserPromptSubmit (turn start), sticky until the next prompt. Declared
+  // here — before the Stop gate at L1242 — because the gate reads it via
+  // fireCompletionBubble to compute durationMs.
+  const srcStartedAt = event === "UserPromptSubmit"
+    ? Date.now()
+    : (existing && Number.isFinite(existing.startedAt) ? existing.startedAt : null);
   const srcAssistantLastOutput = normalizeAssistantOutput(assistantLastOutput);
   const srcAssistantLastOutputTruncated = !!(srcAssistantLastOutput && assistantLastOutputTruncated === true);
   const srcResumeState = (existing && existing.resumeState) || null;
@@ -1243,8 +1277,15 @@ function updateSession(sessionId, state, event, opts = {}) {
       } else {
         scheduleCompletionDebounce(sessionId);
       }
+    } else {
+      // debounceMs <= 0 && !liveWork → keep "attention" (immediate celebration).
+      // The visual state is already attention from the event above; promoteCompletion
+      // would briefly flip session.state to "idle" and re-emit the snapshot, so we
+      // call the bubble helper directly to keep the snapshot stable while still
+      // surfacing the completion toast. Pass srcSessionTitle explicitly because
+      // sessions.set for this brand-new event hasn't run yet.
+      fireCompletionBubble(sessionId, srcSessionTitle, srcStartedAt);
     }
-    // debounceMs <= 0 && !liveWork → keep "attention" (immediate celebration).
   }
 
   // Qwen Code 0.16.1 self-submit guard. qwen's agentic loop fires a synthetic
@@ -1304,7 +1345,7 @@ function updateSession(sessionId, state, event, opts = {}) {
   const srcLastStopAt = isStopBoundary
     ? Date.now()
     : (existing && Number.isFinite(existing.lastStopAt) ? existing.lastStopAt : null);
-  const base = { sourcePid: srcPid, wtHwnd: srcWtHwnd, cwd: srcCwd, editor: srcEditor, pidChain: srcPidChain, agentPid: srcAgentPid, agentId: srcAgentId, host: srcHost, headless: srcHeadless, platform: srcPlatform, model: srcModel, provider: srcProvider, codexOriginator: srcCodexOriginator, codexSource: srcCodexSource, ghosttyTerminalId: srcGhosttyTerminalId, sessionTitle: srcSessionTitle, contextUsage: srcContextUsage, assistantLastOutput: srcAssistantLastOutput, assistantLastOutputTruncated: srcAssistantLastOutputTruncated, recentEvents, pidReachable, lastToolBoundaryAt: srcLastToolBoundaryAt, lastStopAt: srcLastStopAt, awaitingInputSinceStop: resolveAwaitingInputSinceStop(existing, event), muteNotificationSound: state === "notification" && muteNotificationSound === true };
+  const base = { sourcePid: srcPid, wtHwnd: srcWtHwnd, cwd: srcCwd, editor: srcEditor, pidChain: srcPidChain, agentPid: srcAgentPid, agentId: srcAgentId, host: srcHost, headless: srcHeadless, platform: srcPlatform, model: srcModel, provider: srcProvider, codexOriginator: srcCodexOriginator, codexSource: srcCodexSource, ghosttyTerminalId: srcGhosttyTerminalId, sessionTitle: srcSessionTitle, contextUsage: srcContextUsage, assistantLastOutput: srcAssistantLastOutput, assistantLastOutputTruncated: srcAssistantLastOutputTruncated, recentEvents, pidReachable, lastToolBoundaryAt: srcLastToolBoundaryAt, lastStopAt: srcLastStopAt, startedAt: srcStartedAt, awaitingInputSinceStop: resolveAwaitingInputSinceStop(existing, event), muteNotificationSound: state === "notification" && muteNotificationSound === true };
   if (preserveCompletionAck) base.requiresCompletionAck = true;
 
   // Evict oldest session if at capacity and this is a new session.

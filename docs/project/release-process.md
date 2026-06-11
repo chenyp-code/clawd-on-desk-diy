@@ -46,3 +46,41 @@ and package those binaries into app resources.
 
 When the sidecar needs an upstream update, publish a new fixed sidecar release
 from the fork first, then update the Clawd pin and rerun the fetch/verify tests.
+
+## Local Manual Build (China mirror workaround)
+
+The `Build & Release` GitHub workflow assumes GitHub is reachable. When building
+on a machine where GitHub is unreachable (e.g. mainland China without a working
+proxy), electron-builder itself fails to download Electron + NSIS resources, and
+the sidecar fetch times out. Use the wrapper script below — it auto-detects
+whether the user's local proxy is up and adjusts env vars accordingly.
+
+```bash
+scripts/build-windows.sh                  # x64 installer
+scripts/build-windows.sh --win nsis:arm64 # ARM64 installer
+```
+
+The script handles three quirks:
+
+- **Intermittent proxy at `127.0.0.1:7890`.** The user's local clash/VPN proxy
+  is sometimes on, sometimes off. When ON, Go's `http.Transport` inside
+  `app-builder` picks up the IE-level proxy entry and mis-parses it as `:0`,
+  dying with `dial tcp :0`. Setting `HTTPS_PROXY`/`HTTP_PROXY` explicitly
+  bypasses that. When OFF, leaving the env vars unset lets requests go direct.
+  The script does this detection on every run via `Test-NetConnection`.
+- **GitHub unreachability.** `ELECTRON_MIRROR` and `ELECTRON_BUILDER_BINARIES_MIRROR`
+  redirect the two download paths electron-builder hits (`electron-vX.Y.Z-*.zip`
+  and `nsis-*.7z` / `nsis-resources-*.7z`) to npmmirror, which is reachable in
+  both proxy-on and proxy-off states.
+- **`npm run build:win:x64` prebuild hook.** The script calls `electron-builder`
+  directly via `npx`, bypassing the `scripts/verify-sidecar-binaries.js` hook
+  that fails when `bin/cc-connect-clawd/` is empty. The resulting installer
+  will lack Telegram approval — run `npm run fetch:sidecars` separately in an
+  environment with GitHub access if Telegram support is needed.
+
+Output: `dist/Clawd-on-Desk-Setup-<version>-x64.exe` (~120 MB) + `dist/latest.yml`.
+
+Installer is **unsigned** without `CSC_LINK` / `CSC_KEY_PASSWORD`. SmartScreen
+will warn on first install; users click "more info → run anyway".
+
+`dist/` is already in `.gitignore`.

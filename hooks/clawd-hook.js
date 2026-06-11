@@ -125,6 +125,45 @@ function extractSessionTitleFromEntries(entries) {
   return latest;
 }
 
+// Find the most recent "user" transcript entry that has text content (not a
+// synthetic tool_result response) and return that text. Used as a fallback
+// when payload.session_title and custom-title entries both come up empty —
+// typically when Clawd was restarted mid-turn and Claude Code never re-fired
+// UserPromptSubmit for the current turn, so payload.prompt was never seen.
+function userEntryTextFromContent(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return null;
+  const parts = [];
+  for (const block of content) {
+    if (typeof block === "string") {
+      parts.push(block);
+      continue;
+    }
+    if (!block || typeof block !== "object") continue;
+    if (typeof block.type === "string" && block.type === "tool_result") continue;
+    if (typeof block.text === "string") {
+      parts.push(block.text);
+    }
+  }
+  return parts.length ? parts.join("\n") : null;
+}
+
+function extractLatestUserPromptFromEntries(entries, sessionId) {
+  if (!Array.isArray(entries)) return null;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const entry = entries[i];
+    if (!entry || typeof entry !== "object") continue;
+    if (entry.type !== "user") continue;
+    if (sessionId && entry.sessionId && entry.sessionId !== sessionId) continue;
+    const content = entry.message && typeof entry.message === "object"
+      ? entry.message.content
+      : entry.content;
+    const text = userEntryTextFromContent(content);
+    if (text) return text;
+  }
+  return null;
+}
+
 function extractSessionTitleFromTranscript(transcriptPath) {
   return extractSessionTitleFromEntries(readTranscriptTailEntries(transcriptPath));
 }
@@ -385,6 +424,20 @@ function buildStateBody(event, payload, resolve) {
     const promptTitle = extractPromptTitle(payload.prompt);
     if (promptTitle) body.session_title = promptTitle;
   }
+  // Final fallback: read the most recent user prompt text from the transcript
+  // when none of the above yielded a title. Covers resumed/continued sessions
+  // where Claude Code didn't re-fire UserPromptSubmit for the current turn
+  // (e.g. Clawd restarted mid-turn, or hook was registered after the turn
+  // started). extractPromptTitle applies the same first-line + secretish
+  // filtering as the UserPromptSubmit path so titles stay consistent.
+  if (!body.session_title) {
+    const transcriptPrompt = extractLatestUserPromptFromEntries(
+      transcriptEntries,
+      payload.session_id || null,
+    );
+    const transcriptPromptTitle = extractPromptTitle(transcriptPrompt);
+    if (transcriptPromptTitle) body.session_title = transcriptPromptTitle;
+  }
 
   // Claude Code synthesizes API errors into a fake assistant message tagged
   // isApiErrorMessage:true and emits a regular Stop hook (not StopFailure).
@@ -473,6 +526,7 @@ if (require.main === module) main();
 module.exports = {
   buildStateBody,
   extractSessionTitleFromTranscript,
+  extractLatestUserPromptFromEntries,
   extractApiErrorFromEntries,
   extractLastAssistantTextFromEntries,
   readTranscriptTailEntries,

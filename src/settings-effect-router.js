@@ -9,6 +9,7 @@ const MENU_AFFECTING_KEYS = new Set([
   "notificationBubbleAutoCloseSeconds",
   "permissionBubbleAutoCloseSeconds",
   "updateBubbleAutoCloseSeconds",
+  "completionBubbleAutoCloseSeconds",
   "manageClaudeHooksAutomatically",
   "autoStartWithClaude",
   "openAtLogin",
@@ -64,6 +65,8 @@ function createSettingsEffectRouter(options = {}) {
   const refreshPermissionAutoCloseForPolicy = options.refreshPermissionAutoCloseForPolicy || noop;
   const hideUpdateBubbleForPolicy = options.hideUpdateBubbleForPolicy || noop;
   const refreshUpdateBubbleAutoClose = options.refreshUpdateBubbleAutoClose || noop;
+  const hideCompletionBubbleForPolicy = options.hideCompletionBubbleForPolicy || noop;
+  const refreshCompletionBubbleAutoClose = options.refreshCompletionBubbleAutoClose || noop;
   const repositionFloatingBubbles = options.repositionFloatingBubbles || noop;
   const syncSessionHudVisibility = options.syncSessionHudVisibility || noop;
   const handleSessionHudPinnedChanged = options.handleSessionHudPinnedChanged || noop;
@@ -161,6 +164,24 @@ function createSettingsEffectRouter(options = {}) {
         "Clawd: refresh update bubble timer failed:",
         refreshUpdateBubbleAutoClose
       );
+    }
+    // Completion bubble reacts only to its own seconds setting — bypassDnd in
+    // bubble-policy.js means hideBubbles does NOT auto-hide it, and a
+    // non-zero seconds change just re-arms the existing timer.
+    if ("completionBubbleAutoCloseSeconds" in changes) {
+      if (changes.completionBubbleAutoCloseSeconds === 0) {
+        safeCall(
+          logWarn,
+          "Clawd: hide completion bubble failed:",
+          hideCompletionBubbleForPolicy
+        );
+      } else {
+        safeCall(
+          logWarn,
+          "Clawd: refresh completion bubble timer failed:",
+          refreshCompletionBubbleAutoClose
+        );
+      }
     }
     // Permission autoclose: any change (including 0 = disable) needs to be
     // pushed into pending entries so they re-arm or clear timers.

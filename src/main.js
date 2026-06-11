@@ -30,6 +30,8 @@ const { createTelegramMigrationController } = require("./telegram-migration-cont
 const { createTelegramSidecarStatusBridge } = require("./telegram-sidecar-status-bridge");
 const initUpdateBubble = require("./update-bubble");
 const { registerUpdateBubbleIpc } = initUpdateBubble;
+const initCompletionBubble = require("./completion-bubble");
+const { registerCompletionBubbleIpc } = initCompletionBubble;
 const createSettingsAnimationOverridesMain = require("./settings-animation-overrides-main");
 const { registerSettingsAnimationOverridesIpc } = createSettingsAnimationOverridesMain;
 const createShortcutRuntime = require("./shortcut-runtime");
@@ -1081,13 +1083,49 @@ const {
   syncVisibility: syncUpdateBubbleVisibility,
 } = _updateBubble;
 
+// Completion bubble mirrors the update bubble's lifecycle but layers itself
+// between the permission stack and the update bubble. Its own bounds logic
+// (see src/completion-bubble.js) accounts for both — passing getUpdateBubble
+// here is what lets it read the update bubble's live height to compute its
+// own offset. miniMode short-circuits the show in syncVisibility so the
+// bubble doesn't fire while the user is in focused mini workflow.
+const _completionBubbleCtx = {
+  get win() { return win; },
+  get bubbleFollowPet() { return bubbleFollowPet; },
+  get petHidden() { return petWindowRuntime.isPetHidden(); },
+  get miniMode() { return _mini.getMiniMode(); },
+  getBubblePolicy: getRuntimeBubblePolicy,
+  getPendingPermissions: () => pendingPermissions,
+  getUpdateBubble: () => (_updateBubble && typeof _updateBubble.getBubbleWindow === "function")
+    ? _updateBubble.getBubbleWindow()
+    : null,
+  getPetWindowBounds,
+  getNearestWorkArea,
+  getUpdateBubbleAnchorRect,
+  getHitRectScreen,
+  getHudReservedOffset: () => getSessionHudReservedOffset(),
+  guardAlwaysOnTop,
+  reapplyMacVisibility,
+};
+const _completionBubble = initCompletionBubble(_completionBubbleCtx);
+const {
+  showCompletionBubble,
+  hideCompletionBubble,
+  repositionCompletionBubble,
+  syncVisibility: syncCompletionBubbleVisibility,
+  refreshAutoCloseForPolicy: refreshCompletionAutoCloseForPolicy,
+} = _completionBubble;
+
 floatingWindowRuntime = createFloatingWindowRuntime({
   getPendingPermissions: () => pendingPermissions,
   repositionPermissionBubbles: () => repositionBubbles(),
+  repositionCompletionBubble: () => repositionCompletionBubble(),
   repositionUpdateBubble: () => repositionUpdateBubble(),
   repositionSessionHud: () => repositionSessionHud(),
   syncSessionHudVisibility: () => syncSessionHudVisibility(),
+  syncCompletionBubbleVisibility: () => syncCompletionBubbleVisibility(),
   syncUpdateBubbleVisibility: () => syncUpdateBubbleVisibility(),
+  hideCompletionBubble: () => hideCompletionBubble(),
   hideUpdateBubble: () => hideUpdateBubble(),
   keepOutOfTaskbar,
 });
@@ -1145,6 +1183,22 @@ const _stateCtx = {
   dismissPermissionsForDnd: (...args) => _perm.dismissPermissionsForDnd(...args),
   showKimiNotifyBubble: (...args) => showKimiNotifyBubble(...args),
   clearKimiNotifyBubbles: (...args) => clearKimiNotifyBubbles(...args),
+  // Completion bubble hook — fired from state.js's promoteCompletion() once
+  // the #406 gate confirms a real task finish. The bubble module is
+  // fire-and-forget (returns a Promise that nobody awaits in v1) and uses
+  // bubble-policy.js bypassDnd so DND / hideBubbles don't suppress it.
+  // The lang field is injected here (not in state.js) so the state machine
+  // stays free of prefs coupling — the HTML's pill/button label dicts read
+  // payload.lang directly.
+  showCompletionBubble: (args = {}) => showCompletionBubble({
+    ...args,
+    // HTML reads `message` for the body slot (multi-line, pre-wrap). State.js
+    // names the same data `prompt` (it's the user's session title). Map here
+    // so state.js stays free of presentation concerns and the HTML keeps its
+    // semantic field names (title=header, message=body).
+    message: args.message || args.prompt || "",
+    lang: _settingsController.get("lang") || lang || "en",
+  }),
   // state.js needs this to gate startKimiPermissionPoll symmetrically with
   // shouldSuppressKimiNotifyBubble in permission.js — without it the
   // permissionsEnabled=false toggle would silently rebuild holds on every
@@ -2669,6 +2723,10 @@ const settingsEffectRouter = createSettingsEffectRouter({
   refreshPermissionAutoCloseForPolicy: () => callRuntimeMethod(_perm, "refreshPermissionAutoCloseForPolicy"),
   hideUpdateBubbleForPolicy: () => callRuntimeMethod(_updateBubble, "hideForPolicy"),
   refreshUpdateBubbleAutoClose: () => callRuntimeMethod(_updateBubble, "refreshAutoCloseForPolicy"),
+  hideCompletionBubbleForPolicy: () => callRuntimeMethod(_completionBubble, "hideForPolicy"),
+  refreshCompletionBubbleAutoClose: () => callRuntimeMethod(_completionBubble, "refreshAutoCloseForPolicy"),
+  hideCompletionBubbleForPolicy: () => callRuntimeMethod(_completionBubble, "hideForPolicy"),
+  refreshCompletionBubbleAutoClose: () => callRuntimeMethod(_completionBubble, "refreshAutoCloseForPolicy"),
   repositionFloatingBubbles,
   syncSessionHudVisibility: () => syncSessionHudVisibility(),
   handleSessionHudPinnedChanged: (next) => {
@@ -3036,6 +3094,11 @@ function createWindow() {
   registerUpdateBubbleIpc({
     ipcMain,
     updateBubble: _updateBubble,
+  });
+
+  registerCompletionBubbleIpc({
+    ipcMain,
+    completionBubble: _completionBubble,
   });
 
   initFocusHelper();

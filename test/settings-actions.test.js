@@ -608,6 +608,11 @@ describe("bubble policy commands", () => {
     assert.strictEqual(shown.status, "ok");
     assert.deepStrictEqual(shown.commit, {
       hideBubbles: false,
+      // completionBubbleAutoCloseSeconds rides along via the always-set
+      // commit field in buildAggregateHideCommit (see bubble-policy.js for
+      // the rationale). Defaulted to 2 because the input snapshot doesn't
+      // define it.
+      completionBubbleAutoCloseSeconds: 2,
     });
   });
 
@@ -624,6 +629,11 @@ describe("bubble policy commands", () => {
     assert.strictEqual(shown.status, "ok");
     assert.deepStrictEqual(shown.commit, {
       hideBubbles: false,
+      // completionBubbleAutoCloseSeconds is NOT in the "all-defaulted"
+      // branch — completion has bypassDnd semantics and the aggregate
+      // toggle shouldn't restore its default. It still rides along via
+      // the always-set commit field.
+      completionBubbleAutoCloseSeconds: 2,
       permissionBubblesEnabled: true,
       notificationBubbleAutoCloseSeconds: 6,
       updateBubbleAutoCloseSeconds: 9,

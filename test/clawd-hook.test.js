@@ -14,6 +14,7 @@ const path = require("path");
 const {
   buildStateBody,
   extractSessionTitleFromTranscript,
+  extractLatestUserPromptFromEntries,
   extractApiErrorFromEntries,
   extractLastAssistantTextFromEntries,
 } = require("../hooks/clawd-hook.js");
@@ -636,6 +637,106 @@ describe("extractSessionTitleFromTranscript", () => {
     parts.push(JSON.stringify({ type: "custom-title", customTitle: "End Title" }));
     fs.writeFileSync(file, parts.join("\n") + "\n");
     assert.strictEqual(extractSessionTitleFromTranscript(file), "End Title");
+  });
+});
+
+describe("extractLatestUserPromptFromEntries", () => {
+  it("returns the most recent user entry's text content", () => {
+    const entries = [
+      { type: "user", message: { content: "first prompt" } },
+      { type: "assistant", message: { content: "ok" } },
+      { type: "user", message: { content: "second prompt" } },
+    ];
+    assert.strictEqual(extractLatestUserPromptFromEntries(entries, null), "second prompt");
+  });
+
+  it("extracts text from content blocks array, skipping tool_result", () => {
+    const entries = [
+      { type: "user", message: { content: [
+        { type: "text", text: "real prompt" },
+        { type: "tool_result", content: "ignored" },
+      ] } },
+    ];
+    assert.strictEqual(extractLatestUserPromptFromEntries(entries, null), "real prompt");
+  });
+
+  it("skips tool_result-only user entries (synthetic responses)", () => {
+    const entries = [
+      { type: "user", message: { content: [
+        { type: "text", text: "real prompt" },
+      ] } },
+      { type: "assistant", message: { content: "reply" } },
+      { type: "user", message: { content: [
+        { type: "tool_result", content: "tool output" },
+      ] } },
+    ];
+    assert.strictEqual(extractLatestUserPromptFromEntries(entries, null), "real prompt");
+  });
+
+  it("filters out entries from a different sessionId", () => {
+    const entries = [
+      { type: "user", sessionId: "other", message: { content: "wrong session" } },
+      { type: "user", sessionId: "ours", message: { content: "right one" } },
+      { type: "user", sessionId: "other", message: { content: "also wrong" } },
+    ];
+    assert.strictEqual(extractLatestUserPromptFromEntries(entries, "ours"), "right one");
+  });
+
+  it("returns null when no user entry has text", () => {
+    const entries = [
+      { type: "user", message: { content: [{ type: "tool_result", content: "x" }] } },
+      { type: "assistant", message: { content: "y" } },
+    ];
+    assert.strictEqual(extractLatestUserPromptFromEntries(entries, null), null);
+  });
+
+  it("returns null for non-array entries", () => {
+    assert.strictEqual(extractLatestUserPromptFromEntries(null, null), null);
+    assert.strictEqual(extractLatestUserPromptFromEntries(undefined, null), null);
+  });
+});
+
+describe("buildStateBody — transcript user-prompt title fallback", () => {
+  it("falls back to transcript user prompt when payload.session_title and custom-title are absent", () => {
+    // Simulates a resumed/continued session: Claude Code didn't re-fire
+    // UserPromptSubmit for the current turn, so payload.session_title is null
+    // and the transcript has no custom-title entry. The hook should still
+    // derive a title from the most recent user message in the transcript.
+    const file = writeTmpJsonl([
+      { type: "user", message: { content: "Refactor the auth flow" } },
+      { type: "assistant", message: { content: "ok" } },
+    ]);
+    const body = buildStateBody(
+      "Stop",
+      { session_id: "s1", transcript_path: file },
+      mockResolve
+    );
+    assert.strictEqual(body.session_title, "Refactor the auth flow");
+  });
+
+  it("prefers payload.session_title over the transcript fallback", () => {
+    const file = writeTmpJsonl([
+      { type: "user", message: { content: "old prompt" } },
+    ]);
+    const body = buildStateBody(
+      "Stop",
+      { session_id: "s1", transcript_path: file, session_title: "Renamed" },
+      mockResolve
+    );
+    assert.strictEqual(body.session_title, "Renamed");
+  });
+
+  it("prefers custom-title entries over the transcript fallback", () => {
+    const file = writeTmpJsonl([
+      { type: "user", message: { content: "first prompt" } },
+      { type: "custom-title", customTitle: "Renamed Later" },
+    ]);
+    const body = buildStateBody(
+      "Stop",
+      { session_id: "s1", transcript_path: file },
+      mockResolve
+    );
+    assert.strictEqual(body.session_title, "Renamed Later");
   });
 });
 

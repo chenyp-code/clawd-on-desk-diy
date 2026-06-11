@@ -26,6 +26,7 @@
     "permissionBubblesEnabled",
     "notificationBubbleAutoCloseSeconds",
     "updateBubbleAutoCloseSeconds",
+    "completionBubbleAutoCloseSeconds",
     "sessionStaleMs",
     "workingStaleMs",
     "detachedIdleStaleMs",
@@ -35,6 +36,7 @@
     "permissionBubbleAutoCloseSeconds",
     "notificationBubbleAutoCloseSeconds",
     "updateBubbleAutoCloseSeconds",
+    "completionBubbleAutoCloseSeconds",
   ]);
   const SESSION_CLEANUP_NUMBER_KEYS = new Set([
     "sessionStaleMs",
@@ -857,6 +859,12 @@
       descKey: "bubbleUpdateDesc",
       warningKey: "bubbleUpdateWarning",
       secondsKey: "updateBubbleAutoCloseSeconds",
+    }));
+    list.appendChild(buildBubbleCategoryControl({
+      category: "completion",
+      labelKey: "bubbleCompletionLabel",
+      descKey: "bubbleCompletionDesc",
+      secondsKey: "completionBubbleAutoCloseSeconds",
     }));
     return list;
   }

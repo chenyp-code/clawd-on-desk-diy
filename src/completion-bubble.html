@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+body { padding: 6px; }
+
+:root {
+  --ease-spring: cubic-bezier(0.22, 1, 0.36, 1);
+  --card-bg: #ffffff;
+  --card-border: rgba(0, 0, 0, 0.08);
+  --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.12), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --card-inset: none;
+  --text-main: #18181b;
+  --text-muted: #71717a;
+  --header-color: #374151;
+  --primary-bg: #5a9e6f;
+  --primary-hover-bg: #4a8a5d;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --card-bg: #18181b;
+    --card-border: rgba(255, 255, 255, 0.1);
+    --card-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    --card-inset: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+    --text-main: #f4f4f5;
+    --text-muted: #a1a1aa;
+    --header-color: #e4e4e7;
+    --primary-bg: #5a9e6f;
+    --primary-hover-bg: #6bae80;
+  }
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 14px;
+  box-shadow: var(--card-shadow), var(--card-inset, none);
+  color: var(--text-main);
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  opacity: 0;
+  transform: translateX(60px);
+  transition: opacity 0.35s var(--ease-spring), transform 0.4s var(--ease-spring);
+  overflow: hidden;
+}
+.card.visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+.card.hiding {
+  opacity: 0;
+  transform: translateX(60px);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--header-color);
+  letter-spacing: 0.02em;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  background: var(--primary-bg);
+}
+.duration {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  /* Hide the chip entirely when there's no duration to show. The renderer
+     toggles this in show() so the header row keeps its layout stable. */
+  display: none;
+}
+.duration.shown {
+  display: inline;
+}
+
+.message {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-main);
+  /* white-space: pre-wrap keeps newlines from sessionTitle (rare but valid) */
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 2px;
+}
+.btn {
+  flex: 1;
+  min-height: 0;
+  padding: 7px 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s var(--ease-spring);
+  outline: none;
+  background: var(--primary-bg);
+  color: #fff;
+}
+.btn:hover:not(:disabled) {
+  background: var(--primary-hover-bg);
+}
+.btn:active:not(:disabled) { transform: scale(0.96); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.countdown {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  /* Reserve enough space for "99s" so the button doesn't reflow when the
+     tick crosses single→double digits (which can happen if a user sets a
+     very long autoCloseSeconds via prefs). */
+  min-width: 48px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.countdown.expired {
+  opacity: 0;
+  /* Collapses so the button can take the freed space once the timer hits 0. */
+}
+</style>
+</head>
+<body>
+<div class="card" id="card">
+  <div class="header">
+    <div class="title" id="title"></div>
+    <div class="header-right">
+      <div class="pill" id="modePill"></div>
+      <span class="duration" id="duration"></span>
+    </div>
+  </div>
+  <div class="message" id="message"></div>
+  <div class="footer">
+    <button class="btn" id="okBtn" type="button"></button>
+    <span class="countdown" id="countdown"></span>
+  </div>
+</div>
+<script>
+const card = document.getElementById("card");
+const titleEl = document.getElementById("title");
+const modePillEl = document.getElementById("modePill");
+const messageEl = document.getElementById("message");
+const okBtnEl = document.getElementById("okBtn");
+const countdownEl = document.getElementById("countdown");
+const durationEl = document.getElementById("duration");
+
+let countdownIntervalId = null;
+
+function clearCountdownInterval() {
+  if (countdownIntervalId !== null) {
+    clearInterval(countdownIntervalId);
+    countdownIntervalId = null;
+  }
+}
+
+// Locale-neutral task duration. Mirrors src/completion-bubble-format.js for
+// testability — the HTML's CSP blocks <script src> on file://, so we keep a
+// copy inline. Keep both implementations in sync when changing rules.
+function formatDurationMs(ms) {
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  if (ms < 1000) return `${Math.round(ms)}ms`;
+  const seconds = ms / 1000;
+  if (seconds < 60) {
+    return seconds < 10 ? `${seconds.toFixed(1)}s` : `${Math.round(seconds)}s`;
+  }
+  const min = Math.floor(seconds / 60);
+  const sec = Math.floor(seconds % 60);
+  return `${min}m${sec}s`;
+}
+
+function pillLabelForLang(lang) {
+  // Reuse the conceptual "Done" vocabulary already in src/i18n.js as
+  // sessionBadgeDone; keeping the dict local avoids loading the whole i18n
+  // bundle into this tiny renderer.
+  const dicts = {
+    zh: "已完成",
+    ko: "완료",
+    en: "Done",
+    "zh-TW": "已完成",
+    ja: "完了",
+  };
+  return dicts[lang] || dicts.en;
+}
+
+function okLabelForLang(lang) {
+  const dicts = {
+    zh: "好的",
+    ko: "확인",
+    en: "OK",
+    "zh-TW": "好的",
+    ja: "OK",
+  };
+  return dicts[lang] || dicts.en;
+}
+
+function countdownLabel(seconds, lang) {
+  const n = Math.max(0, Math.ceil(seconds));
+  const dicts = {
+    zh: `${n} 秒后关闭`,
+    ko: `${n}초 후 닫힘`,
+    en: `closes in ${n}s`,
+    "zh-TW": `${n} 秒後關閉`,
+    ja: `${n}秒後に閉じる`,
+  };
+  return (dicts[lang] || dicts.en);
+}
+
+function reportHeight() {
+  requestAnimationFrame(() => {
+    window.completionBubbleAPI.reportHeight(card.offsetHeight + 12);
+  });
+}
+
+function startCountdown(seconds, lang) {
+  clearCountdownInterval();
+  countdownEl.classList.remove("expired");
+  let remaining = Math.max(0, Number(seconds) || 0);
+  if (remaining <= 0) {
+    // 0 means "no countdown" — leave the label blank so the button stretches.
+    countdownEl.textContent = "";
+    return;
+  }
+  countdownEl.textContent = countdownLabel(remaining, lang);
+  countdownIntervalId = setInterval(() => {
+    remaining -= 1;
+    if (remaining <= 0) {
+      clearCountdownInterval();
+      countdownEl.classList.add("expired");
+      countdownEl.textContent = "";
+      return;
+    }
+    countdownEl.textContent = countdownLabel(remaining, lang);
+  }, 1000);
+}
+
+function disableButton() {
+  okBtnEl.disabled = true;
+}
+
+function show(payload) {
+  const lang = payload.lang || "en";
+  titleEl.textContent = payload.title || "";
+  // Hide the title row entirely when empty — keeps the card compact for
+  // prompts that already convey the meaning (e.g. when title === pillLabel).
+  titleEl.style.display = payload.title ? "" : "none";
+  messageEl.textContent = payload.message || "";
+  modePillEl.textContent = payload.pillLabel || pillLabelForLang(lang);
+  okBtnEl.textContent = payload.okLabel || okLabelForLang(lang);
+
+  // Duration chip: shown only when the payload carried a usable duration.
+  // Tasks where Clawd never saw a UserPromptSubmit (resumed sessions) carry
+  // durationMs=null and the chip stays hidden — better than showing "0ms".
+  const durationText = formatDurationMs(payload.durationMs);
+  if (durationText) {
+    durationEl.textContent = durationText;
+    durationEl.classList.add("shown");
+  } else {
+    durationEl.textContent = "";
+    durationEl.classList.remove("shown");
+  }
+
+  card.classList.remove("hiding");
+  card.classList.add("visible");
+  okBtnEl.disabled = false;
+  startCountdown(payload.countdownSeconds || 0, lang);
+  reportHeight();
+}
+
+function hide() {
+  clearCountdownInterval();
+  card.classList.remove("visible");
+  card.classList.add("hiding");
+}
+
+okBtnEl.addEventListener("click", () => {
+  disableButton();
+  clearCountdownInterval();
+  window.completionBubbleAPI.choose("ok");
+});
+
+window.completionBubbleAPI.onShow(show);
+window.completionBubbleAPI.onHide(hide);
+</script>
+</body>
+</html>

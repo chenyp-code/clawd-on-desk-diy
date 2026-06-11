@@ -214,6 +214,11 @@ const updateRegistry = {
     0,
     MAX_AUTO_CLOSE_SECONDS
   ),
+  completionBubbleAutoCloseSeconds: requireIntegerInRange(
+    "completionBubbleAutoCloseSeconds",
+    0,
+    MAX_AUTO_CLOSE_SECONDS
+  ),
   // Session stale-cleanup intervals. Cross-field invariant
   // (sessionStaleMs > 0 -> workingStaleMs <= sessionStaleMs) is enforced
   // here against the live snapshot AND atomically through the
