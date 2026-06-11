@@ -15,7 +15,13 @@ jobs:
         with:
           node-version: 20
       - run: npm install
-      - run: npm test
+      - run: npm test 2>&1 | tee npm-test.log; exit ${PIPESTATUS[0]}
+      - name: Upload test output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-test-output
+          path: npm-test.log
       - run: npm run fetch:sidecars -- --target windows-x64,windows-arm64
       - run: node scripts/verify-sidecar-binaries.js prebuild:win:all
       - run: npx electron-builder --win --publish never
