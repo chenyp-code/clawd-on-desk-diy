@@ -2,7 +2,7 @@
 
 > Status: Draft v1, revised after Claude review and Codex code check.
 > Date: 2026-05-07
-> Issue: https://github.com/rullerzhou-afk/clawd-on-desk/issues/244
+> Issue: https://github.com/chenyp-code/clawd-on-desk-diy/issues/244
 > Scope: Fix the existing Low power idle behavior so passive mouse-follow does not keep idle rendering active. Do not add a new Settings toggle in this pass.
 
 ---

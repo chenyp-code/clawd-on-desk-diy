@@ -15,7 +15,7 @@
 >
 > Status history: Draft v2, revised after 1st Codex review + independent code re-verification (2026-06-04). No code written yet.
 > Date: 2026-06-04
-> Issue: https://github.com/rullerzhou-afk/clawd-on-desk/issues/416
+> Issue: https://github.com/chenyp-code/clawd-on-desk-diy/issues/416
 > Reporter: sanyimufeng (wq). Owner confirmed repro 2026-06-03.
 > Scope: Two macOS-Dock-only changes discovered together.
 >   - **Part A (#416):** macOS app "Hide" (⌘H / Dock right-click → 隐藏) does nothing for the pet. Make it actually hide/restore the pet.

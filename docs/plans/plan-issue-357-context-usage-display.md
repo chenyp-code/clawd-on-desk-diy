@@ -2,7 +2,7 @@
 
 > 状态：草稿 v1（需求 + 开发计划，暂无代码）。
 > 日期：2026-06-01
-> Issue：https://github.com/rullerzhou-afk/clawd-on-desk/issues/357（"宠物可以支持显示上下文用量吗，感觉很实用"）
+> Issue：https://github.com/chenyp-code/clawd-on-desk-diy/issues/357（"宠物可以支持显示上下文用量吗，感觉很实用"）
 > 范围：在 Session HUD / Dashboard 里展示每个会话的上下文窗口用量（已用 token vs 上限），数据来自 agent 已经发出的信号。只读遥测；不改 agent 行为、权限流程或动画优先级。
 
 ---

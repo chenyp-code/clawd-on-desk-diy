@@ -14,11 +14,11 @@
   <a href="README.ja-JP.md">日本語</a>
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/releases"><img src="https://img.shields.io/github/v/release/rullerzhou-afk/clawd-on-desk" alt="Version"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/releases"><img src="https://img.shields.io/github/v/release/chenyp-code/clawd-on-desk-diy" alt="Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/stargazers"><img src="https://img.shields.io/github/stars/rullerzhou-afk/clawd-on-desk?style=flat&logo=github&color=yellow" alt="Stars"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/stargazers"><img src="https://img.shields.io/github/stars/chenyp-code/clawd-on-desk-diy?style=flat&logo=github&color=yellow" alt="Stars"></a>
   <a href="https://github.com/hesreallyhim/awesome-claude-code"><img src="https://awesome.re/mentioned-badge-flat.svg" alt="Mentioned in Awesome Claude Code"></a>
 </p>
 
@@ -127,7 +127,7 @@ Clawd はマルチモニター環境に適応します。起動したディス�
 
 ## クイックスタート
 
-通常利用では、**[GitHub Releases](https://github.com/rullerzhou-afk/clawd-on-desk/releases/latest)** から最新のビルド済みインストーラーをダウンロードしてください。
+通常利用では、**[GitHub Releases](https://github.com/chenyp-code/clawd-on-desk-diy/releases/latest)** から最新のビルド済みインストーラーをダウンロードしてください。
 
 - **Windows**: `Clawd-on-Desk-Setup-<version>-x64.exe` または `Clawd-on-Desk-Setup-<version>-arm64.exe`
 - **macOS**: `.dmg`
@@ -139,8 +139,8 @@ Clawd はマルチモニター環境に適応します。起動したディス�
 
 ```bash
 # リポジトリを clone
-git clone https://github.com/rullerzhou-afk/clawd-on-desk.git
-cd clawd-on-desk
+git clone https://github.com/chenyp-code/clawd-on-desk-diy.git
+cd clawd-on-desk-diy
 
 # 依存関係をインストール
 npm install
@@ -197,7 +197,7 @@ node scripts/validate-theme.js path/to/your-theme
 
 ## コントリビュート
 
-Clawd on Desk はコミュニティ主導のプロジェクトです。バグ報告、機能案、Pull Request を歓迎します。相談したい場合は [issue](https://github.com/rullerzhou-afk/clawd-on-desk/issues) を開くか、直接 PR を送ってください。
+Clawd on Desk はコミュニティ主導のプロジェクトです。バグ報告、機能案、Pull Request を歓迎します。相談したい場合は [issue](https://github.com/chenyp-code/clawd-on-desk-diy/issues) を開くか、直接 PR を送ってください。
 
 ### メンテナー
 

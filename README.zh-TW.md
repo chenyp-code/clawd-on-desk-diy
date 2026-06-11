@@ -12,11 +12,11 @@
   <a href="README.ja-JP.md">日本語</a>
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/releases"><img src="https://img.shields.io/github/v/release/rullerzhou-afk/clawd-on-desk" alt="Version"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/releases"><img src="https://img.shields.io/github/v/release/chenyp-code/clawd-on-desk-diy" alt="Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/stargazers"><img src="https://img.shields.io/github/stars/rullerzhou-afk/clawd-on-desk?style=flat&logo=github&color=yellow" alt="Stars"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/stargazers"><img src="https://img.shields.io/github/stars/chenyp-code/clawd-on-desk-diy?style=flat&logo=github&color=yellow" alt="Stars"></a>
   <a href="https://github.com/hesreallyhim/awesome-claude-code"><img src="https://awesome.re/mentioned-badge-flat.svg" alt="Mentioned in Awesome Claude Code"></a>
 </p>
 
@@ -130,7 +130,7 @@ Clawd 支援多螢幕場景：按啟動時所在螢幕做等比縮放，直立�
 
 ## 快速開始
 
-一般使用者建議直接從 **[GitHub Releases](https://github.com/rullerzhou-afk/clawd-on-desk/releases/latest)** 下載最新的預先建置安裝檔：
+一般使用者建議直接從 **[GitHub Releases](https://github.com/chenyp-code/clawd-on-desk-diy/releases/latest)** 下載最新的預先建置安裝檔：
 
 - **Windows**：`Clawd-on-Desk-Setup-<version>-x64.exe` 或 `Clawd-on-Desk-Setup-<version>-arm64.exe`
 - **macOS**：`.dmg`
@@ -142,8 +142,8 @@ Clawd 支援多螢幕場景：按啟動時所在螢幕做等比縮放，直立�
 
 ```bash
 # clone 儲存庫
-git clone https://github.com/rullerzhou-afk/clawd-on-desk.git
-cd clawd-on-desk
+git clone https://github.com/chenyp-code/clawd-on-desk-diy.git
+cd clawd-on-desk-diy
 
 # 安裝相依套件
 npm install
@@ -200,7 +200,7 @@ node scripts/validate-theme.js path/to/your-theme
 
 ## 參與貢獻
 
-Clawd on Desk 是社群驅動的專案。歡迎提 Bug、提需求、提 PR —— 在 [Issues](https://github.com/rullerzhou-afk/clawd-on-desk/issues) 聊聊或直接送 PR。
+Clawd on Desk 是社群驅動的專案。歡迎提 Bug、提需求、提 PR —— 在 [Issues](https://github.com/chenyp-code/clawd-on-desk-diy/issues) 聊聊或直接送 PR。
 
 ### 維護者
 

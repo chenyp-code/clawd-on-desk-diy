@@ -12,11 +12,11 @@
   <a href="README.ja-JP.md">日本語</a>
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/releases"><img src="https://img.shields.io/github/v/release/rullerzhou-afk/clawd-on-desk" alt="Version"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/releases"><img src="https://img.shields.io/github/v/release/chenyp-code/clawd-on-desk-diy" alt="Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/stargazers"><img src="https://img.shields.io/github/stars/rullerzhou-afk/clawd-on-desk?style=flat&logo=github&color=yellow" alt="Stars"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/stargazers"><img src="https://img.shields.io/github/stars/chenyp-code/clawd-on-desk-diy?style=flat&logo=github&color=yellow" alt="Stars"></a>
   <a href="https://github.com/hesreallyhim/awesome-claude-code"><img src="https://awesome.re/mentioned-badge-flat.svg" alt="Mentioned in Awesome Claude Code"></a>
 </p>
 
@@ -125,7 +125,7 @@ Clawd는 멀티 모니터 환경에 맞춰 동작합니다: 실행된 디스플�
 
 ## 빠른 시작
 
-일반 사용자는 **[GitHub Releases](https://github.com/rullerzhou-afk/clawd-on-desk/releases/latest)** 에서 최신 사전 빌드 설치 파일을 다운로드하는 것을 권장합니다.
+일반 사용자는 **[GitHub Releases](https://github.com/chenyp-code/clawd-on-desk-diy/releases/latest)** 에서 최신 사전 빌드 설치 파일을 다운로드하는 것을 권장합니다.
 
 - **Windows**: `Clawd-on-Desk-Setup-<version>-x64.exe` 또는 `Clawd-on-Desk-Setup-<version>-arm64.exe`
 - **macOS**: `.dmg`
@@ -137,8 +137,8 @@ Clawd는 멀티 모니터 환경에 맞춰 동작합니다: 실행된 디스플�
 
 ```bash
 # 저장소 복제
-git clone https://github.com/rullerzhou-afk/clawd-on-desk.git
-cd clawd-on-desk
+git clone https://github.com/chenyp-code/clawd-on-desk-diy.git
+cd clawd-on-desk-diy
 
 # 의존성 설치
 npm install
@@ -193,7 +193,7 @@ node scripts/validate-theme.js path/to/your-theme
 
 ## 기여하기
 
-Clawd on Desk는 커뮤니티 주도 프로젝트입니다. 버그 리포트, 기능 아이디어, PR 모두 환영합니다. [issue](https://github.com/rullerzhou-afk/clawd-on-desk/issues)를 열어 논의하거나 바로 PR을 보내 주세요.
+Clawd on Desk는 커뮤니티 주도 프로젝트입니다. 버그 리포트, 기능 아이디어, PR 모두 환영합니다. [issue](https://github.com/chenyp-code/clawd-on-desk-diy/issues)를 열어 논의하거나 바로 PR을 보내 주세요.
 
 ### 메인테이너
 

@@ -61,7 +61,7 @@ bash scripts/remote-deploy.sh user@远程主机
 
 它复制源码树里的 hooks 文件并打印手动 SSH 配置（`~/.ssh/config` 加 `RemoteForward 127.0.0.1:23333 127.0.0.1:23333`）。DMG / 安装包用户不需要源码目录，请用应用内一键部署。
 
-> 感谢 [@Magic-Bytes](https://github.com/Magic-Bytes) 提出 SSH 隧道方案（[#9](https://github.com/rullerzhou-afk/clawd-on-desk/issues/9)）。
+> 感谢 [@Magic-Bytes](https://github.com/Magic-Bytes) 提出 SSH 隧道方案（[#9](https://github.com/chenyp-code/clawd-on-desk-diy/issues/9)）。
 
 ## WSL（Windows Subsystem for Linux）
 
@@ -118,8 +118,8 @@ networkingMode=mirrored
 Clawd 在 Windows 启动时会自动注册 Claude Code hooks 到 `~/.claude/settings.json`。但如果你的 Agent 跑在 WSL 里，hooks 需要注册到 WSL 自己的 home 目录。请在 WSL 中执行：
 
 ```bash
-git clone https://github.com/rullerzhou-afk/clawd-on-desk.git
-cd clawd-on-desk
+git clone https://github.com/chenyp-code/clawd-on-desk-diy.git
+cd clawd-on-desk-diy
 
 # Claude Code
 node hooks/install.js
@@ -176,6 +176,6 @@ node hooks/openclaw-install.js
 ## Linux 说明
 
 - **源码运行**（`npm start`）：默认启用 Electron sandbox。如果你的 Linux 开发环境仍然遇到 chrome-sandbox 初始化失败，可临时使用 `CLAWD_DISABLE_SANDBOX=1 npm start` 作为兼容方案。
-- **安装包**：AppImage 和 `.deb` 可从 [GitHub Releases](https://github.com/rullerzhou-afk/clawd-on-desk/releases) 下载。deb 安装后应用图标会出现在 GNOME 应用菜单。
+- **安装包**：AppImage 和 `.deb` 可从 [GitHub Releases](https://github.com/chenyp-code/clawd-on-desk-diy/releases) 下载。deb 安装后应用图标会出现在 GNOME 应用菜单。
 - **终端聚焦**：依赖 `wmctrl` 或 `xdotool`（有一个就行）。安装：`sudo apt install wmctrl` 或 `sudo apt install xdotool`。
 - **自动更新**：源码运行时，"检查更新"会执行 `git pull` + `npm install`（依赖有变化时）并自动重启。
