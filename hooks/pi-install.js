@@ -8,7 +8,7 @@ const childProcess = require("child_process");
 const { asarUnpackedPath, writeJsonAtomic } = require("./json-utils");
 const { resolveNodeBin } = require("./server-config");
 
-const EXTENSION_DIR_NAME = "clawd-on-desk";
+const EXTENSION_DIR_NAME = "clawd-on-desk-diy";
 const EXTENSION_FILE = "index.ts";
 const CORE_FILE = "pi-extension-core.js";
 const MARKER_FILE = ".clawd-managed.json";

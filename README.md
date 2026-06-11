@@ -1,7 +1,8 @@
 <p align="center">
   <img src="assets/tray-icon.png" width="128" alt="Clawd">
 </p>
-<h1 align="center">Clawd on Desk</h1>
+<h1 align="center">Clawd on Desk DIY</h1>
+<h3 align="center">Forked from <a href="https://github.com/rullerzhou-afk/clawd-on-desk">rullerzhou-afk/clawd-on-desk</a></h3>
 <p align="center">
   <a href="README.zh-CN.md">中文版</a>
   ·
@@ -12,14 +13,14 @@
   <a href="README.ja-JP.md">日本語</a>
 </p>
 <p align="center">
-  <sub>🌏 Don't see your language? <a href="https://github.com/rullerzhou-afk/clawd-on-desk/pulls">Open a PR</a> to add one — Español, Français, Deutsch, etc. all welcome.</sub>
+  <sub>🌏 Don't see your language? <a href="https://github.com/chenyp-code/clawd-on-desk-diy/pulls">Open a PR</a> to add one — Español, Français, Deutsch, etc. all welcome.</sub>
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/releases"><img src="https://img.shields.io/github/v/release/rullerzhou-afk/clawd-on-desk" alt="Version"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/releases"><img src="https://img.shields.io/github/v/release/chenyp-code/clawd-on-desk-diy" alt="Version"></a>
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey" alt="Platform">
 </p>
 <p align="center">
-  <a href="https://github.com/rullerzhou-afk/clawd-on-desk/stargazers"><img src="https://img.shields.io/github/stars/rullerzhou-afk/clawd-on-desk?style=flat&logo=github&color=yellow" alt="Stars"></a>
+  <a href="https://github.com/chenyp-code/clawd-on-desk-diy/stargazers"><img src="https://img.shields.io/github/stars/chenyp-code/clawd-on-desk-diy?style=flat&logo=github&color=yellow" alt="Stars"></a>
   <a href="https://github.com/hesreallyhim/awesome-claude-code"><img src="https://awesome.re/mentioned-badge-flat.svg" alt="Mentioned in Awesome Claude Code"></a>
 </p>
 
@@ -47,7 +48,7 @@ Thinking when you prompt, typing when tools run, grooving or juggling for subage
 - **Kimi Code CLI (Kimi-CLI)** — command hooks via `~/.kimi/config.toml` (`[[hooks]]` entries) (registered automatically when Clawd starts, or run `npm run install:kimi-hooks`)
 - **Qwen Code** — command hooks via `~/.qwen/settings.json` (registered automatically when Clawd starts, or run `npm run install:qwen-hooks`); state tracking and Qwen `PermissionRequest` desktop approval bubbles are supported
 - **opencode** — [plugin integration](https://opencode.ai/docs/plugins) via `~/.config/opencode/opencode.json` (registered automatically when Clawd starts); zero-latency event streaming, permission bubbles with Allow/Always/Deny, and building animations when parallel subagents are spawned via the `task` tool
-- **Pi** — global extension via `~/.pi/agent/extensions/clawd-on-desk` (registered automatically when Clawd starts, or run `npm run install:pi-extension`); state-only interactive lifecycle and tool activity updates while preserving Pi's default YOLO behavior
+- **Pi** — global extension via `~/.pi/agent/extensions/clawd-on-desk-diy` (registered automatically when Clawd starts, or run `npm run install:pi-extension`); state-only interactive lifecycle and tool activity updates while preserving Pi's default YOLO behavior
 - **OpenClaw** — state-only plugin integration via `~/.openclaw/openclaw.json` (registered automatically when an OpenClaw config already exists, or run `npm run install:openclaw-plugin`); local `openclaw tui --local` sessions drive Clawd animations, without permission bubbles or terminal focus in Phase 1
 - **Hermes Agent** — [plugin integration](https://hermes-agent.org/) via Hermes' managed plugin directory (registered automatically when Hermes is installed, or run `npm run install:hermes-plugin`); state, sessions, SessionEnd, and terminal focus are supported
 - **Multi-agent coexistence** — run all agents simultaneously; Clawd tracks each session independently
@@ -128,7 +129,7 @@ Clawd adapts to multi-monitor setups: proportional sizing uses the display Clawd
 
 ## Quick Start
 
-For normal use, download the latest prebuilt installer from **[GitHub Releases](https://github.com/rullerzhou-afk/clawd-on-desk/releases/latest)**:
+For normal use, download the latest prebuilt installer from **[GitHub Releases](https://github.com/chenyp-code/clawd-on-desk-diy/releases/latest)**:
 
 - **Windows**: `Clawd-on-Desk-Setup-<version>-x64.exe` or `Clawd-on-Desk-Setup-<version>-arm64.exe`
 - **macOS**: `.dmg`
@@ -140,8 +141,8 @@ Run from source only if you're contributing, testing unreleased code, or debuggi
 
 ```bash
 # Clone the repo
-git clone https://github.com/rullerzhou-afk/clawd-on-desk.git
-cd clawd-on-desk
+git clone https://github.com/chenyp-code/clawd-on-desk-diy.git
+cd clawd-on-desk-diy
 
 # Install dependencies
 npm install
@@ -198,13 +199,14 @@ Some things we'd like to explore in the future:
 
 ## Contributing
 
-Clawd on Desk is a community-driven project. Bug reports, feature ideas, and pull requests are all welcome — open an [issue](https://github.com/rullerzhou-afk/clawd-on-desk/issues) to discuss or submit a PR directly.
+Clawd on Desk is a community-driven project. Bug reports, feature ideas, and pull requests are all welcome — open an [issue](https://github.com/chenyp-code/clawd-on-desk-diy/issues) to discuss or submit a PR directly.
 
 ### Maintainers
 
 <table>
   <tr>
-    <td align="center" valign="top" width="140"><a href="https://github.com/rullerzhou-afk"><img src="https://github.com/rullerzhou-afk.png" width="72" style="border-radius:50%" /><br /><sub><b>@rullerzhou-afk</b><br />鹿鹿 · creator</sub></a></td>
+    <td align="center" valign="top" width="140"><a href="https://github.com/rullerzhou-afk"><img src="https://github.com/rullerzhou-afk.png" width="72" style="border-radius:50%" /><br /><sub><b>@rullerzhou-afk</b><br />鹿鹿 · original creator</sub></a></td>
+    <td align="center" valign="top" width="140"><a href="https://github.com/chenyp-code"><img src="https://github.com/chenyp-code.png" width="72" style="border-radius:50%" /><br /><sub><b>@chenyp-code</b><br />fork maintainer</sub></a></td>
     <td align="center" valign="top" width="140"><a href="https://github.com/YOIMIYA66"><img src="https://github.com/YOIMIYA66.png" width="72" style="border-radius:50%" /><br /><sub><b>@YOIMIYA66</b><br />maintainer</sub></a></td>
   </tr>
 </table>
