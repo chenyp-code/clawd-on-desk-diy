@@ -4,7 +4,11 @@ v0.9.1 is a focused release on the **completion bubble**: making the
 "task done" notification actually useful by showing what was asked
 and how long it took, plus letting you tune how long the bubble
 lingers. It also adds a local Windows build wrapper for contributors
-working from networks where GitHub is unreachable.
+working from networks where GitHub is unreachable. This release is
+shipped from a fork at **chenyp-code/clawd-on-desk-diy** (see the
+"Fork rebrand" section below) — all functional URLs in the binary
+point at the fork home, so v0.9.1 does not auto-update from the
+upstream repo.
 
 ### New Features
 
@@ -62,6 +66,66 @@ working from networks where GitHub is unreachable.
   installers are unaffected. The official Windows / macOS / Linux
   installers still come from the `Build & Release` GitHub workflow.
 - Release metadata is bumped to `0.9.1` in `package.json`.
+
+### Fork Rebrand
+
+This release is published from a personal fork of the upstream
+[rullerzhou-afk/clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)
+project, hosted at **[chenyp-code/clawd-on-desk-diy](https://github.com/chenyp-code/clawd-on-desk-diy)**.
+The rebrand is more than cosmetic — the following functional pieces
+in the built binary now point at the fork home, not upstream:
+
+- **About panel repo link** — `src/settings-ipc.js` `get-about-info`
+  returns `repoUrl: "https://github.com/chenyp-code/clawd-on-desk-diy"`
+  instead of the upstream URL. Clicking "View on GitHub" in the
+  About dialog opens the fork.
+- **Auto-update endpoint** — `src/updater.js` `RELEASES_LATEST_URL`
+  and the GitHub API path the background scheduler hits both point
+  at `chenyp-code/clawd-on-desk-diy`. v0.9.1 will not see updates
+  published to the upstream repo; only releases pushed to the
+  fork's GitHub Releases will be offered. (If you specifically
+  want to follow upstream, build from a clone of the upstream
+  repo and install that instead.)
+- **electron-builder publish target** — `package.json`
+  `build.publish.owner` and `build.publish.repo` are set to
+  `chenyp-code` / `clawd-on-desk-diy` so the manual `Build & Release`
+  workflow uploads new installers to the fork's releases page.
+- **Pi extension install path** — `hooks/pi-install.js`
+  `EXTENSION_DIR_NAME` is now `clawd-on-desk-diy`, so the extension
+  lands at `~/.pi/agent/extensions/clawd-on-desk-diy` instead of
+  `~/.pi/agent/extensions/clawd-on-desk`. The marker
+  `app: "clawd-on-desk"` is intentionally kept unchanged so any
+  pre-existing install on the old path still reads as a Clawd-
+  managed install; if you had the old `clawd-on-desk` install
+  before upgrading to the fork, manually remove
+  `~/.pi/agent/extensions/clawd-on-desk` to avoid Pi loading both
+  copies (the new uninstall script only cleans the new path).
+
+Documentation also reflects the fork identity:
+
+- All localized READMEs (English + zh-CN / zh-TW / ja-JP / ko-KR)
+  point badges, release links, clone URLs, and issue tracker links
+  at the fork. The "Forked from" attribution and the original-
+  creator / artwork credits stay accurate to
+  [@rullerzhou-afk](https://github.com/rullerzhou-afk) (鹿鹿) — this
+  fork does not claim authorship of the original work.
+- The setup guide and three `docs/plans/plan-issue-*` documents
+  that referenced upstream issues by URL are updated to the fork's
+  issue tracker. Issue numbers in the plan files (244, 357, 416)
+  are upstream-specific and may not exist in the fork — clicking
+  them from the fork's docs is expected to 404 until the
+  corresponding issues are re-filed.
+- `.gitignore` already whitelists the new release-notes file under
+  `docs/releases/`.
+
+The fork rebrand was added in two commits on top of the original
+v0.9.1 feature commit:
+
+- `4cc784b` — `README.md` rebrand + Pi install path rename
+  (1 file outside README: `hooks/pi-install.js` + its test).
+- `af529e5` — 13 other files: localized READMEs, setup guides,
+  plan docs, `package.json` `build.publish`, `src/settings-ipc.js`
+  `repoUrl`, `src/updater.js` release endpoints and tests.
 
 ### Docs & Contributors
 
