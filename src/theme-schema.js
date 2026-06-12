@@ -713,6 +713,15 @@ function mergeDefaults(raw, themeId, isBuiltin) {
   theme.states = {};
   theme._stateBindings = {};
   for (const [stateKey, entry] of Object.entries(normalizedStates)) {
+    if (stateKey === "walking" && isPlainObject(raw.states && raw.states.walking)) {
+      const walkingRaw = raw.states.walking;
+      const walking = {};
+      for (const [dir, dirFiles] of Object.entries(walkingRaw)) {
+        if (Array.isArray(dirFiles)) walking[dir] = dirFiles.map(bn);
+      }
+      theme.states.walking = walking;
+      continue;
+    }
     const files = entry.files.map(bn);
     theme.states[stateKey] = files;
     theme._stateBindings[stateKey] = {

@@ -171,6 +171,38 @@ describe("theme schema validation", () => {
 });
 
 describe("theme schema defaults and normalization", () => {
+  it("mergeDefaults preserves the walking state directional map and sanitizes basenames", () => {
+    const theme = schema.mergeDefaults(validThemeJson({
+      states: {
+        idle: ["idle.svg"],
+        walking: {
+          up: ["../walking-up.svg"],
+          down: ["walking-down.svg"],
+          left: ["walking-left.svg"],
+          right: ["walking-right.svg"],
+          "up-left": ["walking-up-left.svg"],
+          "up-right": ["walking-up-right.svg"],
+          "down-left": ["walking-down-left.svg"],
+          "down-right": ["walking-down-right.svg"],
+          paused: ["walking-paused.svg"],
+        },
+      },
+    }), "demo", true);
+
+    assert.deepStrictEqual(theme.states.walking, {
+      up: ["walking-up.svg"],
+      down: ["walking-down.svg"],
+      left: ["walking-left.svg"],
+      right: ["walking-right.svg"],
+      "up-left": ["walking-up-left.svg"],
+      "up-right": ["walking-up-right.svg"],
+      "down-left": ["walking-down-left.svg"],
+      "down-right": ["walking-down-right.svg"],
+      paused: ["walking-paused.svg"],
+    });
+    assert.strictEqual(theme._stateBindings.walking, undefined);
+  });
+
   it("mergeDefaults applies defaults and sanitizes runtime file references", () => {
     const theme = schema.mergeDefaults(validThemeJson({
       states: {
