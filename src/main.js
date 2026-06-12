@@ -399,6 +399,7 @@ function safeConsoleError(...args) {
 
 // ── Theme loader ──
 const themeLoader = require("./theme-loader");
+const { DEFAULT_WALKING_ROAMING } = require("./theme-schema");
 const createCodexPetMain = require("./codex-pet-main");
 themeLoader.init(__dirname, app.getPath("userData"));
 themeRuntime = createThemeRuntime({
@@ -1310,6 +1311,7 @@ function getUpdateBubbleAnchorRect(bounds) { return petWindowRuntime.getUpdateBu
 function getSessionHudAnchorRect(bounds) { return petWindowRuntime.getSessionHudAnchorRect(bounds); }
 
 // ── Main tick — delegated to src/tick.js ──
+let _roamingController = null;
 const _tickCtx = {
   get theme() { return getActiveTheme(); },
   get win() { return win; },
@@ -1342,10 +1344,66 @@ const _tickCtx = {
   getObjRect,
   getHitRectScreen,
   getAssetPointerPayload,
+  get sessions() { return _state.getSessions ? _state.getSessions() : new Map(); },
+  get doNotDisturb() { return doNotDisturb; },
+  getIdleRoamingEnabled: () => !!_settingsController.getSnapshot().idleRoamingEnabled,
+  resolveDisplayState: () => _state.getCurrentState ? _state.getCurrentState() : "idle",
+  get roamingController() { return _roamingController; },
 };
 const _tick = require("./tick")(_tickCtx);
 requestFastTick = (maxDelay) => _tick.scheduleSoon(maxDelay);
 const { startMainTick, resetIdleTimer } = _tick;
+
+// ── Roaming controller — v0.9.2 idle walking roaming ──
+function buildRoamingController() {
+  const ctx = {
+    get theme() { return getActiveTheme(); },
+    get win() { return win; },
+    get defaultWalkingRoaming() { return DEFAULT_WALKING_ROAMING; },
+    applyState: (state, file, direction) => {
+      if (typeof applyState === "function") applyState(state, file, direction);
+    },
+    sendToRenderer,
+    syncHitWin,
+    repositionSessionHud: () => repositionFloatingBubbles && repositionFloatingBubbles(),
+    repositionBubbles: () => repositionFloatingBubbles && repositionFloatingBubbles(),
+    syncContainedClip: () => {},
+    bubbleFollowPet: !!_settingsController.getSnapshot().bubbleFollowPet,
+    pendingPermissions: pendingPermissions || [],
+    get sessions() { return _state.getSessions ? _state.getSessions() : new Map(); },
+    get dragLocked() { return petWindowRuntime.isDragLocked(); },
+    get menuOpen() { return menuOpen; },
+    get miniMode() { return _mini.getMiniMode(); },
+    get doNotDisturb() { return doNotDisturb; },
+    get idlePaused() { return idlePaused; },
+    getIdleRoamingEnabled: () => !!_settingsController.getSnapshot().idleRoamingEnabled,
+    resolveDisplayState: () => _state.getCurrentState ? _state.getCurrentState() : "idle",
+    getPetWindowBounds,
+    getNearestWorkArea: (x, y) => {
+      try {
+        const all = screen.getAllDisplays();
+        let best = all[0];
+        let bestDist = Infinity;
+        for (const d of all) {
+          const wa = d.workArea;
+          if (x >= wa.x && x < wa.x + wa.width && y >= wa.y && y < wa.y + wa.height) {
+            return wa;
+          }
+          const cx = Math.max(wa.x, Math.min(x, wa.x + wa.width - 1));
+          const cy = Math.max(wa.y, Math.min(y, wa.y + wa.height - 1));
+          const dist = (cx - x) ** 2 + (cy - y) ** 2;
+          if (dist < bestDist) { bestDist = dist; best = d; }
+        }
+        return best ? best.workArea : { x: 0, y: 0, width: 1920, height: 1040 };
+      } catch {
+        return { x: 0, y: 0, width: 1920, height: 1040 };
+      }
+    },
+    clampToScreenVisual,
+  };
+  return require("./roaming-controller")(ctx);
+}
+_roamingController = buildRoamingController();
 
 // ── Terminal focus — delegated to src/focus.js ──
 const _focus = require("./focus")({ _allowSetForeground, focusLog });
@@ -2739,6 +2797,7 @@ const settingsEffectRouter = createSettingsEffectRouter({
   getMiniMode: () => _mini.getMiniMode(),
   rebuildAllMenus,
   reconcilePowerSaveBlocker,
+  roamingController: _roamingController,
   logWarn: console.warn,
 });
 settingsEffectRouter.start();

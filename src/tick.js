@@ -248,6 +248,9 @@ function runMainTickOnce() {
           isMouseIdle = false;
           ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
         }
+        if (ctx.roamingController && ctx.roamingController.isActive()) {
+          ctx.roamingController.cancel();
+        }
       }
 
       const elapsed = Date.now() - mouseStillSince;
@@ -294,6 +297,25 @@ function runMainTickOnce() {
             setTimeout(() => { ctx.forceEyeResend = true; }, 200);
           }
         }, 250 + pick.duration);
+        return nextDelay();
+      }
+
+      // 20s no mouse movement + no sessions + roaming enabled + theme supports walking → start roaming
+      const roamingEnabled = ctx.getIdleRoamingEnabled ? ctx.getIdleRoamingEnabled() : true;
+      const walkingAssets = theme && theme.states && theme.states.walking;
+      const sessionsEmpty = !ctx.sessions || (typeof ctx.sessions.size === "number" && ctx.sessions.size === 0);
+      if (
+        roamingEnabled
+        && walkingAssets
+        && sessionsEmpty
+        && !hasTriggeredYawn
+        && ctx.roamingController
+        && typeof ctx.roamingController.isActive === "function"
+        && !ctx.roamingController.isActive()
+        && ctx.currentState === "idle"
+        && elapsed >= MOUSE_IDLE_TIMEOUT
+      ) {
+        ctx.roamingController.start();
         return nextDelay();
       }
     }
