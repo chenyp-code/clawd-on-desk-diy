@@ -137,6 +137,11 @@ describe("prefs.getDefaults", () => {
       quickCommandsEnabled: false,
     });
   });
+
+  it("defaults idleRoamingEnabled to true", () => {
+    const d = prefs.getDefaults();
+    assert.strictEqual(d.idleRoamingEnabled, true);
+  });
 });
 
 describe("prefs.validate", () => {

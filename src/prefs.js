@@ -147,6 +147,11 @@ const SCHEMA = {
     default: COMPLETION_DEFAULT_SECONDS,
     validate: (v) => Number.isInteger(v) && v >= 0 && v <= MAX_AUTO_CLOSE_SECONDS,
   },
+  idleRoamingEnabled: {
+    type: "boolean",
+    default: true,
+    validate: (v) => typeof v === "boolean",
+  },
   soundMuted: { type: "boolean", default: false },
   soundVolume: {
     type: "number",
@@ -411,6 +416,9 @@ function migrate(raw) {
   // default (no way to infer a prior user choice).
   if (out.completionBubbleAutoCloseSeconds === undefined) {
     out.completionBubbleAutoCloseSeconds = COMPLETION_DEFAULT_SECONDS;
+  }
+  if (out.idleRoamingEnabled === undefined) {
+    out.idleRoamingEnabled = true;
   }
   // v1 -> v2 historical backfill for the short-lived Pi permission subgate.
   // v4 below resets it off again because Pi is state-only.
