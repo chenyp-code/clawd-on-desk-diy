@@ -423,6 +423,7 @@ let isDragReacting = false;
 let reactTimer = null;
 let currentIdleSvg = null;    // tracks which SVG is currently showing
 let currentState = null;      // last state name received from main (for re-pulse)
+let walkingDirection = null;  // last walking direction ("up", "up-left", "paused", etc.)
 let lastCloudlingPointerPayload = null;
 let dndEnabled = false;
 let miniLeftFlip = false;
@@ -916,6 +917,9 @@ window.electronAPI.onStateChange((state, svg) => {
   // swapToFile() with the matching state for eye-tracking decisions.
   currentState = state;
   noteLowPowerActivity();
+  if (state !== "walking") {
+    walkingDirection = null;
+  }
   if (!shouldUseCloudlingPointerBridge(state, svg)) {
     clearCloudlingPointerBridge();
   }
@@ -971,6 +975,16 @@ window.electronAPI.onKimiPermissionPulse(() => {
     swapToFile(currentDisplayedSvg, currentState);
   }
 });
+
+// --- Walking direction (v0.9.2 idle roaming) ---
+if (window.electronAPI && typeof window.electronAPI.onWalkingDirection === "function") {
+  window.electronAPI.onWalkingDirection((direction) => {
+    if (currentState !== "walking") return;
+    walkingDirection = direction;
+    // The main process already sends a new state-change with the new file,
+    // so we don't need to swap the SVG here — the change handler does it.
+  });
+}
 
 // --- Eye tracking (idle state only) ---
 // Two systems coexist:
