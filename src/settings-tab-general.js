@@ -121,6 +121,11 @@
         labelKey: "rowKeepSizeAcrossDisplays",
         descKey: "rowKeepSizeAcrossDisplaysDesc",
       }),
+      helpers.buildSwitchRow({
+        key: "idleRoamingEnabled",
+        labelKey: "rowIdleRoamingEnabled",
+        descKey: "rowIdleRoamingEnabledDesc",
+      }),
     ]));
 
     parent.appendChild(helpers.buildSection(t("sectionSession"), [
