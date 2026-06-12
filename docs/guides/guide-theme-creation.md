@@ -173,6 +173,7 @@ These are common optional states you can add when you want distinct visuals for 
 | `sweeping` | Context compaction | |
 | `carrying` | Worktree creation | |
 | `juggling` | Subagent active | Declare this and/or `jugglingTiers` if you want a distinct juggling visual |
+| `walking` | Idle desktop roaming | Declare the 9-direction walking sub-states (see *Walking — Idle Desktop Roaming*) to opt your theme into the global roaming feature |
 
 ### Optional Update Visuals
 
@@ -287,6 +288,40 @@ Different animations based on how many agent sessions are running concurrently:
   { "minSessions": 1, "file": "typing.gif" }
 ]
 ```
+
+### Walking — Idle Desktop Roaming
+
+When the global *Idle desktop roaming* toggle is on (Settings → General → Appearance), Clawd may walk the pet around the desktop after ~20 s of mouse idle with no active AI session. To opt your theme in, declare both a `walking` state slot and a top-level `walkingRoaming` config:
+
+```json
+"states": {
+  "walking": {
+    "up":         ["walking-up.gif"],
+    "down":       ["walking-down.gif"],
+    "left":       ["walking-left.gif"],
+    "right":      ["walking-right.gif"],
+    "up-left":    ["walking-up-left.gif"],
+    "up-right":   ["walking-up-right.gif"],
+    "down-left":  ["walking-down-left.gif"],
+    "down-right": ["walking-down-right.gif"],
+    "paused":     ["walking-paused.gif"]
+  }
+},
+"walkingRoaming": {
+  "enabled": true,
+  "walkDurationMs": 3500,
+  "pauseDurationMs": 2500,
+  "walkSpeedPxPerSec": 80,
+  "minTargetDistPx": 180,
+  "maxTargetDistPx": 320,
+  "avoidRadiusPx": 150
+}
+```
+
+- All 9 direction files are required when you declare the `walking` slot. `paused` is shown briefly between walks.
+- Omit the whole `walking` slot (or set `walkingRoaming.enabled: false`) to keep your theme perfectly still during idle.
+- `walkDurationMs` is how long one walk lasts; `pauseDurationMs` is how long the pet stops between walks. `walkSpeedPxPerSec` is the linear pixel speed used to derive the per-walk target. `minTargetDistPx` / `maxTargetDistPx` constrain the random target distance; `avoidRadiusPx` filters target points that land too close to the mouse cursor.
+- The walking state sits between `idle` and `sleeping` in the priority table, so any higher-priority event (notification, attention, error, working, thinking, etc.) immediately interrupts the roam.
 
 ### Reactions
 

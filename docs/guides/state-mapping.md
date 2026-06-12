@@ -21,8 +21,17 @@ Subagent events still map to the logical `juggling` state, but Clawd now chooses
 | PermissionRequest | notification | Alert | <img src="../../assets/gif/clawd-notification.gif" width="160"> | <img src="../../assets/gif/calico-notification.gif" width="130"> | <img src="../../assets/gif/cloudling-notification.gif" width="140"> |
 | PreCompact | sweeping | Sweeping | <img src="../../assets/gif/clawd-sweeping.gif" width="160"> | <img src="../../assets/gif/calico-sweeping.gif" width="130"> | <img src="../../assets/gif/cloudling-sweeping.gif" width="140"> |
 | WorktreeCreate | carrying | Carrying | <img src="../../assets/gif/clawd-carrying.gif" width="160"> | <img src="../../assets/gif/calico-carrying.gif" width="130"> | <img src="../../assets/gif/cloudling-carrying.gif" width="140"> |
+| 20s mouse idle + no live session | walking | Roam desktop (8 directions + paused) | per-direction walking SVG | per-direction walking SVG | per-direction walking SVG |
 | 60s mouse idle | sleeping | Sleep | <img src="../../assets/gif/clawd-sleeping.gif" width="160"> | <img src="../../assets/gif/calico-sleeping.gif" width="130"> | <img src="../../assets/gif/cloudling-sleeping.gif" width="140"> |
 | SessionEnd | remove session; idle if no live sessions | No sleep transition | | | |
+
+### Idle desktop roaming (walking)
+
+When the mouse is still for ~20 s and no AI coding session is active, Clawd may start walking around the desktop in one of 8 directions, alternating ~3.5 s of walking with ~2.5 s of paused looking around. Any mouse activity cancels the walk and returns the pet to idle. The behaviour stops automatically before the 60 s deep-sleep transition so it never competes with sleeping.
+
+- Toggle: Settings → General → Appearance → **Idle desktop roaming** (default on).
+- Per-theme: themes opt in by declaring a `walking` state slot with 9 direction files (`up`/`down`/`left`/`right`/`up-left`/`up-right`/`down-left`/`down-right`/`paused`) plus a `walkingRoaming` config block. Themes without the slot stay perfectly still while idle.
+- Priority: walking sits between `idle` and `sleeping`, so any higher-priority event (notification, attention, error, working, sweeping, carrying, thinking) interrupts the roam immediately.
 
 ## Kimi Code CLI (Kimi-CLI) Hook Events
 

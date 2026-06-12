@@ -16,13 +16,27 @@ This document holds the state machine, theme system, UI runtime, and platform ca
 ## State Machine
 
 - 多会话追踪：`sessions` Map 按 `session_id` 独立记录状态，`resolveDisplayState()` 取最高优先级
-- 状态优先级：`error(8) > notification(7) > sweeping(6) > attention(5) > carrying/juggling(4) > working(3) > thinking(2) > idle(1) > sleeping(0)`
+- 状态优先级：`error(8) > notification(7) > sweeping(6) > attention(5) > carrying/juggling(4) > working(3) > thinking(2) > idle(1) > walking(0.5) > sleeping(0)`
 - 最小显示时长：防止快速闪切（`error=5s`、`attention/notification=4s`、`carrying=3s`、`sweeping=2s`、`working/thinking=1s`）
 - 一次性状态：`attention/error/sweeping/notification/carrying` 显示后自动回退（`AUTO_RETURN_MS`）
 - 睡眠序列：20s 鼠标静止 → idle-look → 60s → yawning(3s) → dozing → 10min → collapsing(0.8s) → sleeping；鼠标移动触发 waking(1.5s) → 恢复
 - DND 模式：跳过 dozing，直接 yawning → collapsing → sleeping；同时屏蔽 hook 事件
 - working 子动画：Clawd 主题为 1 个会话 → typing，2 个 → headphones groove，3+ → building；Calico / Cloudling 仍为 typing / juggling / building
 - juggling 子动画：1 个 subagent → juggling，2+ → conducting
+
+## Idle Desktop Roaming (Walking)
+
+闲时桌面漫步是 v0.9.2 引入的可选行为：鼠标静止 ~20s、当前无 live AI session 时，桌宠会在桌面上随机走 8 方向之一，走 ~3.5s 之后停 ~2.5s 再继续。鼠标移动立即取消。
+
+- 全局开关：`prefs.idleRoamingEnabled`（默认 `true`），Settings → General → Appearance → *Idle desktop roaming*
+- 主题开关：主题 `theme.json` 必须同时声明 `states.walking`（9 方向）和顶层 `walkingRoaming` 才参与漫步；任一缺失即视为不支持
+- 优先级 `0.5`：位于 `idle(1)` 与 `sleeping(0)` 之间，任何更高优先级事件（notification、attention、error、working、thinking、sweeping、carrying 等）会立即中断漫步
+- 关键模块：
+  - `src/walking-target-picker.js`：从 8 个方向中随机挑一个，结合 `walkSpeedPxPerSec` × `walkDurationMs` 与 `min/maxTargetDistPx` 算出目标坐标，再用 `computeLooseClamp` 钳进 work area；最多重试 8 次避开 mouse `avoidRadiusPx`
+  - `src/walking-animator.js`：`animateWindowXY(ctx, target, durationMs, onDone)`，与 `mini.js` 中的 `animateWindowX` 同构，按帧数推进，调用 `win.setPosition({x, y})`；返回 `cancel()`，并有 `completed` 标志保证 `onDone` 只触发一次
+  - `src/roaming-controller.js`：组合 picker + animator + walk/pause 循环；`canStartNow()` 检查 idle/sessions/DND/menu/mini/drag 等门控；start 时通过 `ctx.applyState("walking", file, direction)` 并发 IPC `walking-direction` 给 renderer
+  - `src/tick.js`：mouse-idle ≥ 20s 且 `sessions.empty` 且未触发 yawning 时拉起 roaming；任意 mouse move 取消 roaming
+  - `src/settings-effect-router.js`：`idleRoamingEnabled` 变化时调 `roamingController.refreshSettings()`，由 controller 决定是否立即停掉
 
 ## Theme System
 
