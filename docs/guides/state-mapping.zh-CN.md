@@ -21,17 +21,18 @@ Subagent 事件仍映射到逻辑 `juggling` 状态，但 Clawd 主题现在会�
 | PermissionRequest | 通知 | 警报 | <img src="../../assets/gif/clawd-notification.gif" width="160"> | <img src="../../assets/gif/calico-notification.gif" width="130"> | <img src="../../assets/gif/cloudling-notification.gif" width="140"> |
 | PreCompact | 扫地 | 扫地 | <img src="../../assets/gif/clawd-sweeping.gif" width="160"> | <img src="../../assets/gif/calico-sweeping.gif" width="130"> | <img src="../../assets/gif/cloudling-sweeping.gif" width="140"> |
 | WorktreeCreate | 搬运 | 搬箱子 | <img src="../../assets/gif/clawd-carrying.gif" width="160"> | <img src="../../assets/gif/calico-carrying.gif" width="130"> | <img src="../../assets/gif/cloudling-carrying.gif" width="140"> |
-| 20 秒鼠标静止 + 无 live 会话 | 漫步 | 在桌面 8 方向随机走动（含暂停） | 各方向 walking SVG | 各方向 walking SVG | 各方向 walking SVG |
+| 无 live 会话 + 未拖动宠物 + 开关开启 + 主题支持 walking | 漫步 | 在桌面 8 方向随机走动（含暂停） | 各方向 walking SVG | 各方向 walking SVG | 各方向 walking SVG |
 | 60 秒鼠标静止 | 睡觉 | 睡眠 | <img src="../../assets/gif/clawd-sleeping.gif" width="160"> | <img src="../../assets/gif/calico-sleeping.gif" width="130"> | <img src="../../assets/gif/cloudling-sleeping.gif" width="140"> |
 | SessionEnd | 删除会话；无其他 live 会话时回到 idle | 不触发睡眠过渡 | | | |
 
 ### 闲时桌面漫步（walking）
 
-鼠标静止约 20 秒、且当前没有 AI 编码会话运行时，Clawd 可能会在桌面上沿 8 方向之一开始走动，3.5 秒左右走、2.5 秒左右停下来四处张望。任何鼠标活动都会立刻取消漫步并回到 idle。该行为会在 60 秒深度睡眠过渡前自动停止，因此不会与睡觉竞争。
+Walking 是新的默认状态——没有 AI 编码会话运行、且用户没有拖动宠物时，Clawd 会在桌面上沿 8 方向之一走动，3.5 秒左右走、2.5 秒左右停下来四处张望。没有鼠标静止等待，条件一满足就开始走。
 
+- 打断条件：更高优先级事件（通知、注意、报错、工作、扫地、搬运、思考）、用户抓住宠物（`dragLocked`）、关闭开关、主题不再提供 `walking` 槽。**桌面其他位置的普通鼠标移动不会取消漫步。**
 - 开关：设置 → 通用 → 外观 → **闲时桌面漫步**（默认开启）。
 - 每主题：主题需声明 `walking` 状态槽（含 9 个方向素材：`up`/`down`/`left`/`right`/`up-left`/`up-right`/`down-left`/`down-right`/`paused`）以及 `walkingRoaming` 配置块，才会启用漫步。未声明该槽的主题闲时仍保持原地。
-- 优先级：walking 位于 `idle` 与 `sleeping` 之间，因此任何更高优先级事件（通知、注意、报错、工作、扫地、搬运、思考）都会立即打断漫步。
+- 优先级：controller active 时，walking 会取代 `idle` 成为默认状态——只要开关开启且主题支持，宠物不会静止不动。
 
 ## Kimi Code CLI（Kimi-CLI）Hook 事件
 

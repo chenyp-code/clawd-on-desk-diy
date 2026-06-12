@@ -26,16 +26,16 @@ This document holds the state machine, theme system, UI runtime, and platform ca
 
 ## Idle Desktop Roaming (Walking)
 
-闲时桌面漫步是 v0.9.2 引入的可选行为：鼠标静止 ~20s、当前无 live AI session 时，桌宠会在桌面上随机走 8 方向之一，走 ~3.5s 之后停 ~2.5s 再继续。鼠标移动立即取消。
+闲时桌面漫步是 v0.9.2 引入的默认行为：只要没有 live AI session 在跑、用户也没有抓住宠物，桌宠就会在桌面上随机走 8 方向之一，走 ~3.5s 之后停 ~2.5s 再继续。没有鼠标静止等待。**普通鼠标移动不会取消漫步**——只有抓住宠物（`dragLocked`）、更高优先级事件触发、关闭开关或主题移除 `walking` 槽才会停。
 
 - 全局开关：`prefs.idleRoamingEnabled`（默认 `true`），Settings → General → Appearance → *Idle desktop roaming*
 - 主题开关：主题 `theme.json` 必须同时声明 `states.walking`（9 方向）和顶层 `walkingRoaming` 才参与漫步；任一缺失即视为不支持
-- 优先级 `0.5`：位于 `idle(1)` 与 `sleeping(0)` 之间，任何更高优先级事件（notification、attention、error、working、thinking、sweeping、carrying 等）会立即中断漫步
+- 优先级 `0.5`：位于 `idle(1)` 与 `sleeping(0)` 之间，resolveDisplayState 在 controller active 且 dominant state ≤ idle 时返回 "walking"（取代 idle 作为默认状态）；任何更高优先级事件（notification、attention、error、working、thinking、sweeping、carrying 等）会立即中断并 cancel controller
 - 关键模块：
   - `src/walking-target-picker.js`：从 8 个方向中随机挑一个，结合 `walkSpeedPxPerSec` × `walkDurationMs` 与 `min/maxTargetDistPx` 算出目标坐标，再用 `computeLooseClamp` 钳进 work area；最多重试 8 次避开 mouse `avoidRadiusPx`
   - `src/walking-animator.js`：`animateWindowXY(ctx, target, durationMs, onDone)`，与 `mini.js` 中的 `animateWindowX` 同构，按帧数推进，调用 `win.setPosition({x, y})`；返回 `cancel()`，并有 `completed` 标志保证 `onDone` 只触发一次
   - `src/roaming-controller.js`：组合 picker + animator + walk/pause 循环；`canStartNow()` 检查 idle/sessions/DND/menu/mini/drag 等门控；start 时通过 `ctx.applyState("walking", file, direction)` 并发 IPC `walking-direction` 给 renderer
-  - `src/tick.js`：mouse-idle ≥ 20s 且 `sessions.empty` 且未触发 yawning 时拉起 roaming；任意 mouse move 取消 roaming
+  - `src/tick.js`：在 idle 分支里只要 `sessions.empty` 且未触发 yawning 且 `currentState === "idle"` 就立即拉起 roaming，没有 mouse-idle 等待；mouse-move 不再取消（仅 `dragLocked` 取消）
   - `src/settings-effect-router.js`：`idleRoamingEnabled` 变化时调 `roamingController.refreshSettings()`，由 controller 决定是否立即停掉
 
 ## Theme System

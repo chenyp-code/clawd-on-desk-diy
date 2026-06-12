@@ -1,27 +1,33 @@
 ## v0.9.2
 
-v0.9.2 adds **idle desktop roaming**: when the mouse is still and no AI
-coding session is running, Clawd can walk around your desktop in 8
-random directions instead of just standing or sleeping. It is the first
-v0.9.x release to introduce a brand-new pet state — `walking` — and the
-infrastructure that supports it (a separate target picker, an
-`animateWindowXY` window-move primitive, a roaming controller, a
-preference toggle, a settings UI switch in 5 locales, and a per-theme
-`walking` asset slot in all three built-in themes plus the template).
+v0.9.2 makes the pet's **idle roaming the default state** — whenever no
+live AI coding session is running and the user isn't dragging the pet,
+Clawd walks and pauses around the desktop in 8 random directions
+(`3.5 s` walking → `2.5 s` paused, looping). Mouse movement elsewhere
+on the desktop does NOT interrupt the walk; only the user grabbing the
+pet, a higher-priority state firing, or the new settings toggle being
+turned off will stop it. It is the first v0.9.x release to introduce a
+brand-new pet state — `walking` — and the infrastructure that supports
+it (a separate target picker, an `animateWindowXY` window-move
+primitive, a roaming controller, a preference toggle, a settings UI
+switch in 5 locales, and a per-theme `walking` asset slot in all three
+built-in themes plus the template).
 
 ### New Features
 
-- **Idle desktop roaming.** After ~20 seconds of mouse idle with no
-  live AI coding session, Clawd may start a walk/pause loop —
-  ~3.5 s walking in one of 8 directions, then ~2.5 s paused — until
-  any mouse activity or higher-priority event interrupts it. The
-  feature sits between `idle` and `sleeping` in the state priority
-  table, so notifications, attention, errors, working / thinking /
-  sweeping / carrying / juggling and the deep-sleep sequence all
-  preempt it cleanly. Default target distance is 180–320 px, target
-  points within 150 px of the mouse cursor are rejected (up to 8
-  retries), and targets are clamped into the current display's work
-  area via `computeLooseClamp`.
+- **Idle roaming as the default state.** Whenever the pet is otherwise
+  idle (no live AI coding session, the user is not dragging the pet,
+  the toggle is on, and the theme ships the `walking` asset slot),
+  Clawd walks in one of 8 random directions, then pauses, then walks
+  again — looping until any of those gates fail. Default target
+  distance is 180–320 px, target points within 150 px of the mouse
+  cursor are rejected (up to 8 retries), and targets are clamped into
+  the current display's work area via `computeLooseClamp`. Plain mouse
+  movement elsewhere on the desktop does NOT cancel the walk; the only
+  walking interrupts are a higher-priority event (notification,
+  attention, error, working, thinking, sweeping, carrying, juggling),
+  the user grabbing the pet, the toggle being flipped off, or a theme
+  that no longer ships the `walking` slot.
 - **Settings toggle: Idle desktop roaming.** New switch row under
   `Settings…` → `General` → `Appearance`, persisted as
   `idleRoamingEnabled` (default `true`). Localized into English,
@@ -113,11 +119,13 @@ preference toggle, a settings UI switch in 5 locales, and a per-theme
   describing the two-layer (global toggle + per-theme) enablement.
 - All five top-level READMEs (English, zh-CN, zh-TW, ko-KR, ja-JP)
   add a single Features bullet under Animations & Interaction
-  describing the feature, default-on toggle path, and the cancel-
-  on-mouse-move behavior.
+  describing the feature, default-on toggle path, the
+  no-mouse-idle-wait default, and the "drag the pet or start a
+  session to stop the walk" interrupt story.
 - Test coverage added: `test/walking-target-picker.test.js` (10
   tests), `test/walking-animator.test.js` (4 tests),
-  `test/roaming-controller.test.js` (10 tests), plus extensions to
+  `test/roaming-controller.test.js` (10 tests), `test/state.test.js`
+  (4 new resolveDisplayState override tests), plus extensions to
   `test/state-priority.test.js`, `test/theme-schema.test.js`,
   `test/prefs.test.js`, `test/settings-actions.test.js`, and
   `test/settings-effect-router.test.js`.

@@ -181,8 +181,8 @@ function runMainTickOnce() {
 
     // Skip expensive native IPC calls (getCursorScreenPoint, getBounds) when
     // cursor tracking is not needed — saves ~20 calls/sec to the OS layer.
-    // v0.9.2: also poll when the roaming controller is active so mouse
-    // movement can cancel the walk below.
+    // v0.9.2: also poll when the roaming controller is active so the
+    // walking-active branch below can see when the user grabs the pet.
     const walkingNow = ctx.currentState === "walking"
       && ctx.roamingController
       && typeof ctx.roamingController.isActive === "function"
@@ -195,11 +195,11 @@ function runMainTickOnce() {
     lastCursorX = cursor.x;
     lastCursorY = cursor.y;
 
-    // v0.9.2: cancel an active walk on mouse movement. The idle-branch
-    // cancellation below only fires when idleNow, but with the no-wait
-    // trigger the pet can be in `walking` state at the moment the user
-    // moves the mouse — so we cancel here, before the idleNow early-return.
-    if (walkingNow && moved) {
+    // v0.9.2: cancel an active walk when the user grabs the pet. Plain mouse
+    // movement (without a drag) does NOT cancel — only dragLocked does.
+    // canStartNow() also gates start on !dragLocked, so a drag in progress
+    // never triggers a walk in the first place.
+    if (walkingNow && ctx.dragLocked && !ctx.miniMode && !ctx.doNotDisturb) {
       ctx.roamingController.cancel();
       mouseStillSince = Date.now();
     }
@@ -263,9 +263,11 @@ function runMainTickOnce() {
           isMouseIdle = false;
           ctx.sendToRenderer("state-change", "idle", SVG_IDLE_FOLLOW);
         }
-        if (ctx.roamingController && ctx.roamingController.isActive()) {
-          ctx.roamingController.cancel();
-        }
+        // v0.9.2: mouse movement (without a drag) does NOT cancel walking.
+        // The dragLocked cancel lives above, in the walking-aware polling
+        // branch. Leaving a stale roamingController cancel here would be
+        // dead code (idleNow is false while the pet is walking) but
+        // removing it makes the intent explicit.
       }
 
       const elapsed = Date.now() - mouseStillSince;

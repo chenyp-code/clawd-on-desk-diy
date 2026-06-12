@@ -21,17 +21,18 @@ Subagent events still map to the logical `juggling` state, but Clawd now chooses
 | PermissionRequest | notification | Alert | <img src="../../assets/gif/clawd-notification.gif" width="160"> | <img src="../../assets/gif/calico-notification.gif" width="130"> | <img src="../../assets/gif/cloudling-notification.gif" width="140"> |
 | PreCompact | sweeping | Sweeping | <img src="../../assets/gif/clawd-sweeping.gif" width="160"> | <img src="../../assets/gif/calico-sweeping.gif" width="130"> | <img src="../../assets/gif/cloudling-sweeping.gif" width="140"> |
 | WorktreeCreate | carrying | Carrying | <img src="../../assets/gif/clawd-carrying.gif" width="160"> | <img src="../../assets/gif/calico-carrying.gif" width="130"> | <img src="../../assets/gif/cloudling-carrying.gif" width="140"> |
-| 20s mouse idle + no live session | walking | Roam desktop (8 directions + paused) | per-direction walking SVG | per-direction walking SVG | per-direction walking SVG |
+| No live session + not dragging the pet + toggle on + theme supports walking | walking | Roam desktop (8 directions + paused) | per-direction walking SVG | per-direction walking SVG | per-direction walking SVG |
 | 60s mouse idle | sleeping | Sleep | <img src="../../assets/gif/clawd-sleeping.gif" width="160"> | <img src="../../assets/gif/calico-sleeping.gif" width="130"> | <img src="../../assets/gif/cloudling-sleeping.gif" width="140"> |
 | SessionEnd | remove session; idle if no live sessions | No sleep transition | | | |
 
 ### Idle desktop roaming (walking)
 
-When the mouse is still for ~20 s and no AI coding session is active, Clawd may start walking around the desktop in one of 8 directions, alternating ~3.5 s of walking with ~2.5 s of paused looking around. Any mouse activity cancels the walk and returns the pet to idle. The behaviour stops automatically before the 60 s deep-sleep transition so it never competes with sleeping.
+Walking is the new default state when no live AI coding session is running and the user is not dragging the pet — Clawd walks around the desktop in one of 8 directions, alternating ~3.5 s of walking with ~2.5 s of paused looking around. There is no mouse-idle wait; the walk starts as soon as the conditions are met.
 
+- Interrupts: a higher-priority event (notification, attention, error, working, sweeping, carrying, thinking), the user grabbing the pet (`dragLocked`), the toggle being flipped off, or a theme that no longer ships the `walking` slot. **Plain mouse movement elsewhere on the desktop does NOT cancel the walk.**
 - Toggle: Settings → General → Appearance → **Idle desktop roaming** (default on).
 - Per-theme: themes opt in by declaring a `walking` state slot with 9 direction files (`up`/`down`/`left`/`right`/`up-left`/`up-right`/`down-left`/`down-right`/`paused`) plus a `walkingRoaming` config block. Themes without the slot stay perfectly still while idle.
-- Priority: walking sits between `idle` and `sleeping`, so any higher-priority event (notification, attention, error, working, sweeping, carrying, thinking) interrupts the roam immediately.
+- Priority: walking replaces `idle` as the default state when the controller is active, so the pet never sits motionless while the toggle is on and the theme supports it.
 
 ## Kimi Code CLI (Kimi-CLI) Hook Events
 

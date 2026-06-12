@@ -291,7 +291,7 @@ Different animations based on how many agent sessions are running concurrently:
 
 ### Walking — Idle Desktop Roaming
 
-When the global *Idle desktop roaming* toggle is on (Settings → General → Appearance), Clawd may walk the pet around the desktop after ~20 s of mouse idle with no active AI session. To opt your theme in, declare both a `walking` state slot and a top-level `walkingRoaming` config:
+When the global *Idle desktop roaming* toggle is on (Settings → General → Appearance), Clawd walks the pet around the desktop as the new default state whenever no live AI coding session is running and the user is not dragging the pet. There is no mouse-idle wait — the walk starts as soon as the conditions are met, and plain mouse movement elsewhere does NOT cancel it (only grabbing the pet, a higher-priority event, or the toggle being flipped off will stop it). To opt your theme in, declare both a `walking` state slot and a top-level `walkingRoaming` config:
 
 ```json
 "states": {

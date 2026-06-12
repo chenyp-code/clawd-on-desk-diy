@@ -153,7 +153,7 @@ Copilot CLI 同步走 `<COPILOT_HOME 或 ~/.copilot>/hooks/hooks.json`，marker-
 - 需要编辑发布素材时，先复制到 `assets/source/` 再改，不要直接改工作素材来源不明的文件
 - `assets/source/cloudling-pointer-bridge/` 是 Cloudling 指针桥素材的保留源文件目录；运行时逻辑已内联进主题 SVG，不要把这个 source 目录当临时文件清理
 - 主题状态、sleep/DND、mini mode、状态映射的细节在 `docs/project/theme-state-ui.md`
-- 闲时桌面漫步（walking）由 `prefs.idleRoamingEnabled`（默认 on）+ 主题 `states.walking` + `walkingRoaming` 两层共同启用；状态优先级 `0.5`，位于 `idle(1)` 和 `sleeping(0)` 之间。漫步只在 mouse-idle ≥ 20s 且无 live session 时启动，鼠标任何活动立即取消。任何更高优先级事件都会打断漫步
+- 闲时桌面漫步（walking）由 `prefs.idleRoamingEnabled`（默认 on）+ 主题 `states.walking` + `walkingRoaming` 两层共同启用；状态优先级 `0.5`，位于 `idle(1)` 和 `sleeping(0)` 之间，但 resolveDisplayState 在 controller active 且 dominant ≤ idle 时会让 walking 取代 idle 作为默认显示状态。**没有 mouse-idle 等待**——只要无 live session 且用户没抓住宠物，漫步立即开始；普通鼠标移动不会取消，只有 `dragLocked`、更高优先级事件、关闭开关或主题移除 walking 槽才会停
 - Settings 体系里，store 是唯一真相，controller 是唯一写入者；不要绕开 `settings-controller.js`
 
 ## Testing
