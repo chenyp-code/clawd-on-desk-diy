@@ -219,6 +219,7 @@ const updateRegistry = {
     0,
     MAX_AUTO_CLOSE_SECONDS
   ),
+  idleRoamingEnabled: requireBoolean("idleRoamingEnabled"),
   // Session stale-cleanup intervals. Cross-field invariant
   // (sessionStaleMs > 0 -> workingStaleMs <= sessionStaleMs) is enforced
   // here against the live snapshot AND atomically through the

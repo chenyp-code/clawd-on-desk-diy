@@ -83,6 +83,7 @@ describe("updateRegistry pure-data validators", () => {
       "miniMode", "openAtLoginHydrated", "soundMuted", "bubbleFollowPet",
       "hideBubbles", "permissionBubblesEnabled", "lowPowerIdleMode",
       "allowEdgePinning", "disableMiniMode", "keepSizeAcrossDisplays",
+      "idleRoamingEnabled",
     ]) {
       assert.strictEqual(updateRegistry[key](true, deps).status, "ok", `${key}(true)`);
       assert.strictEqual(updateRegistry[key](false, deps).status, "ok", `${key}(false)`);
