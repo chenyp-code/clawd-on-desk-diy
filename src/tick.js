@@ -323,10 +323,11 @@ function runMainTickOnce() {
       const roamingEnabled = ctx.getIdleRoamingEnabled ? ctx.getIdleRoamingEnabled() : true;
       const walkingAssets = theme && theme.states && theme.states.walking;
       const sessionsEmpty = !ctx.sessions || (typeof ctx.sessions.size === "number" && ctx.sessions.size === 0);
+      const forceWalk = process.env.CLAWD_FORCE_WALK === "1";
       if (
         roamingEnabled
         && walkingAssets
-        && sessionsEmpty
+        && (sessionsEmpty || forceWalk)
         && !hasTriggeredYawn
         && ctx.roamingController
         && typeof ctx.roamingController.isActive === "function"

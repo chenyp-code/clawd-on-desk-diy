@@ -66,6 +66,7 @@ module.exports = function initRoamingController(ctx) {
     if (!ctx.getIdleRoamingEnabled || !ctx.getIdleRoamingEnabled()) return false;
     if (ctx.idlePaused) return false;
     if (ctx.dragLocked || ctx.menuOpen || ctx.miniMode || ctx.doNotDisturb) return false;
+    if (process.env.CLAWD_FORCE_WALK === "1") return true;
     if (ctx.sessions && typeof ctx.sessions.size === "number" && ctx.sessions.size > 0) return false;
     return true;
   }

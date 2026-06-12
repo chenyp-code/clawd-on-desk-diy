@@ -1901,6 +1901,7 @@ function resolveDisplayState() {
     && typeof ctx.roamingController.isActive === "function"
     && ctx.roamingController.isActive()
   ) {
+    if (process.env.CLAWD_FORCE_WALK === "1") return "walking";
     const idlePriority = getStatePriority("idle", STATE_PRIORITY);
     if (getStatePriority(fromSessions, STATE_PRIORITY) <= idlePriority) {
       return "walking";
