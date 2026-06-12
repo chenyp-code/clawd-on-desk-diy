@@ -104,6 +104,9 @@ Copilot CLI 同步走 `<COPILOT_HOME 或 ~/.copilot>/hooks/hooks.json`，marker-
 | `src/menu.js` | 托盘 / 右键菜单，串起设置、Dashboard、语言、mini mode、更新入口 |
 | `src/mini.js` | 极简模式入场、滑动、peek、状态映射 |
 | `src/tick.js` | 主循环、鼠标轮询、眼球和 idle/sleep 逻辑 |
+| `src/walking-target-picker.js` | 闲时漫步目标点选择：8 方向 × 距离区间，结合 work area 和 mouse avoid radius |
+| `src/walking-animator.js` | `animateWindowXY` 帧动画原语：按帧推进 `setPosition({x,y})`，可取消，`onDone` 只触发一次 |
+| `src/roaming-controller.js` | 漫步主控：组合 picker + animator + walk/pause 循环，门控 idle/sessions/DND/mini，发 `walking-direction` IPC |
 | `src/drag-position.js` | 拖拽落点规范化与跨显示器钳制 |
 | `src/visible-margins.js` | 可视角色边距与 edge pinning 规则 |
 | `src/updater.js` | Git 模式 / `electron-updater` 双路径更新逻辑 |
@@ -150,6 +153,7 @@ Copilot CLI 同步走 `<COPILOT_HOME 或 ~/.copilot>/hooks/hooks.json`，marker-
 - 需要编辑发布素材时，先复制到 `assets/source/` 再改，不要直接改工作素材来源不明的文件
 - `assets/source/cloudling-pointer-bridge/` 是 Cloudling 指针桥素材的保留源文件目录；运行时逻辑已内联进主题 SVG，不要把这个 source 目录当临时文件清理
 - 主题状态、sleep/DND、mini mode、状态映射的细节在 `docs/project/theme-state-ui.md`
+- 闲时桌面漫步（walking）由 `prefs.idleRoamingEnabled`（默认 on）+ 主题 `states.walking` + `walkingRoaming` 两层共同启用；状态优先级 `0.5`，位于 `idle(1)` 和 `sleeping(0)` 之间。漫步只在 mouse-idle ≥ 20s 且无 live session 时启动，鼠标任何活动立即取消。任何更高优先级事件都会打断漫步
 - Settings 体系里，store 是唯一真相，controller 是唯一写入者；不要绕开 `settings-controller.js`
 
 ## Testing

@@ -59,6 +59,7 @@ Thinking when you prompt, typing when tools run, grooving or juggling for subage
 - **Codex Pet imports** — import Codex Pet zip packages from `Settings…` → `Theme`; Clawd adapts their atlas animations into managed themes
 - **Eye tracking** — Clawd follows your cursor in idle state, with body lean and shadow stretch
 - **Sleep sequence** — yawning, dozing, collapsing, sleeping after 60s idle; mouse movement triggers a startled wake-up animation
+- **Idle desktop roaming** — after ~20s of mouse idle with no active AI session, supported themes can walk Clawd around your desktop in 8 directions; any mouse activity instantly cancels the walk. Toggle via `Settings…` → `General` → `Idle desktop roaming` (default on)
 - **Click reactions** — double-click for a poke, 4 clicks for a flail
 - **Drag from any state** — grab Clawd anytime (Pointer Capture prevents fast-flick drops), release to resume
 - **Mini mode** — drag to right edge or right-click "Mini Mode"; Clawd hides at screen edge with peek-on-hover, mini alerts/celebrations, and parabolic jump transitions
