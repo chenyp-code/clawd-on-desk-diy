@@ -36,7 +36,11 @@ describe("animateWindowXY", () => {
       win: {
         isDestroyed: () => false,
         getBounds: () => ({ x: 0, y: 0, width: 120, height: 120 }),
-        setPosition: mock.fn(),
+        setPosition: mock.fn((x, y) => {
+          if (typeof x !== "number" || typeof y !== "number") {
+            throw new Error("Insufficient number of arguments.");
+          }
+        }),
         setBounds: mock.fn(),
       },
       syncHitWin: mock.fn(),
@@ -48,7 +52,7 @@ describe("animateWindowXY", () => {
     };
   }
 
-  it("calls setPosition each frame and finishes via onDone", () => {
+  it("calls setBounds each frame and finishes via onDone", () => {
     const { animateWindowXY } = loadAnimator();
     const ctx = makeCtx();
     animateWindowXY(ctx, { x: 240, y: 100 }, 800, onDone);
@@ -57,8 +61,7 @@ describe("animateWindowXY", () => {
     assert.strictEqual(frames[0].ms, 16);
 
     for (let i = 0; i < 25; i++) frames[0].fn();
-    const halfwayCall = ctx.win.setPosition.mock.calls[Math.floor(ctx.win.setPosition.mock.calls.length / 2)];
-    assert.ok(halfwayCall);
+    assert.ok(ctx.win.setBounds.mock.calls.length > 0, "setBounds should be called each frame");
 
     for (let i = 0; i < 60; i++) {
       if (frames.length === 0) break;
@@ -67,8 +70,39 @@ describe("animateWindowXY", () => {
     }
 
     assert.strictEqual(onDone.mock.calls.length, 1);
+    const lastCall = ctx.win.setBounds.mock.calls[ctx.win.setBounds.mock.calls.length - 1];
+    assert.deepStrictEqual(lastCall.arguments[0], { x: 240, y: 100, width: 120, height: 120 });
+  });
+
+  it("falls back to setPosition(x, y) when setBounds is unavailable, with separate-number signature", () => {
+    const { animateWindowXY } = loadAnimator();
+    const ctx = {
+      win: {
+        isDestroyed: () => false,
+        getBounds: () => ({ x: 0, y: 0, width: 120, height: 120 }),
+        setPosition: mock.fn((x, y) => {
+          if (typeof x !== "number" || typeof y !== "number") {
+            throw new Error("Insufficient number of arguments.");
+          }
+        }),
+      },
+      syncHitWin: mock.fn(),
+      repositionSessionHud: mock.fn(),
+    };
+    animateWindowXY(ctx, { x: 240, y: 100 }, 800, onDone);
+
+    for (let i = 0; i < 60; i++) {
+      if (frames.length === 0) break;
+      const last = frames[frames.length - 1];
+      if (last && last.ms === 16) last.fn();
+    }
+
+    assert.strictEqual(onDone.mock.calls.length, 1, "onDone should fire after animation completes");
+    assert.ok(ctx.win.setPosition.mock.calls.length > 0, "setPosition should be called as fallback");
     const lastCall = ctx.win.setPosition.mock.calls[ctx.win.setPosition.mock.calls.length - 1];
-    assert.deepStrictEqual(lastCall.arguments[0], { x: 240, y: 100 });
+    assert.strictEqual(lastCall.arguments.length, 2, "setPosition must be called with two separate number args");
+    assert.strictEqual(typeof lastCall.arguments[0], "number");
+    assert.strictEqual(typeof lastCall.arguments[1], "number");
   });
 
   it("invokes onDone immediately if already at target", () => {

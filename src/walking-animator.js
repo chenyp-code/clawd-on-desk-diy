@@ -52,10 +52,10 @@ function animateWindowXY(ctx, target, durationMs, onDone) {
       return;
     }
     try {
-      if (typeof win.setPosition === "function") {
-        win.setPosition({ x, y });
-      } else if (typeof win.setBounds === "function") {
+      if (typeof win.setBounds === "function") {
         win.setBounds({ x, y, width: bounds.width, height: bounds.height });
+      } else if (typeof win.setPosition === "function") {
+        win.setPosition(x, y);
       }
     } catch {
       if (typeof onDone === "function") onDone();
