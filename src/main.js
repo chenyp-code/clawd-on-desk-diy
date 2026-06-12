@@ -1264,6 +1264,13 @@ const _stateCtx = {
     }
     return false;
   },
+  // v0.9.2 idle roaming — state.js's resolveDisplayState() reads
+  // ctx.roamingController.isActive() to know when to keep "walking" as the
+  // current display state. The forward reference is safe because state.js
+  // only reads this at runtime (well after _roamingController is assigned
+  // at line 1406). Reads default to null before that assignment, which the
+  // truthy check in state.js handles correctly.
+  get roamingController() { return _roamingController; },
 };
 const _state = require("./state")(_stateCtx);
 const { setState, applyState, updateSession, resolveDisplayState, getSvgOverride,

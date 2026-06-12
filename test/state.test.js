@@ -274,6 +274,59 @@ describe("resolveDisplayState()", () => {
     assert.strictEqual(api.resolveDisplayState(), "notification");
     api.setUpdateVisualState(null);
   });
+
+  // ── v0.9.2 idle-roaming override ─────────────────────────────────────────
+  it("roamingController active + no sessions → walking (replaces idle)", () => {
+    const ctx = makeCtx();
+    let cancelled = 0;
+    ctx.roamingController = {
+      isActive: () => true,
+      cancel: () => { cancelled += 1; },
+    };
+    const api2 = require("../src/state")(ctx);
+    assert.strictEqual(api2.resolveDisplayState(), "walking");
+    assert.strictEqual(cancelled, 0, "controller must not be cancelled when dominant state is below walking");
+    api2.cleanup();
+  });
+
+  it("roamingController active + working session → working + controller cancelled", () => {
+    const ctx = makeCtx();
+    let cancelled = 0;
+    ctx.roamingController = {
+      isActive: () => true,
+      cancel: () => { cancelled += 1; },
+    };
+    const api2 = require("../src/state")(ctx);
+    api2.sessions.set("s1", rawSession("working"));
+    assert.strictEqual(api2.resolveDisplayState(), "working");
+    assert.strictEqual(cancelled, 1, "controller must be cancelled when a higher-priority state is needed");
+    api2.cleanup();
+  });
+
+  it("roamingController active + error session → error + controller cancelled", () => {
+    const ctx = makeCtx();
+    let cancelled = 0;
+    ctx.roamingController = {
+      isActive: () => true,
+      cancel: () => { cancelled += 1; },
+    };
+    const api2 = require("../src/state")(ctx);
+    api2.sessions.set("s1", rawSession("error"));
+    assert.strictEqual(api2.resolveDisplayState(), "error");
+    assert.strictEqual(cancelled, 1);
+    api2.cleanup();
+  });
+
+  it("roamingController not active → no override applied", () => {
+    const ctx = makeCtx();
+    ctx.roamingController = {
+      isActive: () => false,
+      cancel: () => {},
+    };
+    const api2 = require("../src/state")(ctx);
+    assert.strictEqual(api2.resolveDisplayState(), "idle");
+    api2.cleanup();
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════

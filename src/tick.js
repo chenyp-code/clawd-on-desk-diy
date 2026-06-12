@@ -181,13 +181,28 @@ function runMainTickOnce() {
 
     // Skip expensive native IPC calls (getCursorScreenPoint, getBounds) when
     // cursor tracking is not needed — saves ~20 calls/sec to the OS layer.
-    const needsCursorPoll = idleNow || miniIdleNow || ctx.miniMode;
+    // v0.9.2: also poll when the roaming controller is active so mouse
+    // movement can cancel the walk below.
+    const walkingNow = ctx.currentState === "walking"
+      && ctx.roamingController
+      && typeof ctx.roamingController.isActive === "function"
+      && ctx.roamingController.isActive();
+    const needsCursorPoll = idleNow || miniIdleNow || ctx.miniMode || walkingNow;
     if (!needsCursorPoll) return nextDelay();
 
     const cursor = screen.getCursorScreenPoint();
     const moved = lastCursorX !== null && (cursor.x !== lastCursorX || cursor.y !== lastCursorY);
     lastCursorX = cursor.x;
     lastCursorY = cursor.y;
+
+    // v0.9.2: cancel an active walk on mouse movement. The idle-branch
+    // cancellation below only fires when idleNow, but with the no-wait
+    // trigger the pet can be in `walking` state at the moment the user
+    // moves the mouse — so we cancel here, before the idleNow early-return.
+    if (walkingNow && moved) {
+      ctx.roamingController.cancel();
+      mouseStillSince = Date.now();
+    }
 
     // ── Cursor-over-pet tracking (for mini peek + eye tracking, NOT for input routing) ──
     const pointerBridgeKey = getPointerBridgeKey();
@@ -300,7 +315,9 @@ function runMainTickOnce() {
         return nextDelay();
       }
 
-      // 20s no mouse movement + no sessions + roaming enabled + theme supports walking → start roaming
+      // no sessions + roaming enabled + theme supports walking → start roaming
+      // (v0.9.2+: no 20s mouse-idle wait — walking replaces idle as the
+      // default state whenever no higher-priority event is in play.)
       const roamingEnabled = ctx.getIdleRoamingEnabled ? ctx.getIdleRoamingEnabled() : true;
       const walkingAssets = theme && theme.states && theme.states.walking;
       const sessionsEmpty = !ctx.sessions || (typeof ctx.sessions.size === "number" && ctx.sessions.size === 0);
@@ -313,7 +330,6 @@ function runMainTickOnce() {
         && typeof ctx.roamingController.isActive === "function"
         && !ctx.roamingController.isActive()
         && ctx.currentState === "idle"
-        && elapsed >= MOUSE_IDLE_TIMEOUT
       ) {
         ctx.roamingController.start();
         return nextDelay();

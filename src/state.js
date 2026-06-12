@@ -1882,12 +1882,34 @@ function stopKimiPermissionPoll(sessionId) {
 }
 
 function resolveDisplayState() {
-  return resolveDisplayStateFromSessions(sessions, {
+  const fromSessions = resolveDisplayStateFromSessions(sessions, {
     statePriority: STATE_PRIORITY,
     permissionLocked: hasPermissionAnimationLock(),
     updateVisualState,
     updateVisualPriority,
   });
+  // Idle-roaming override (v0.9.2). When the roaming controller is actively
+  // moving the pet, treat that as the current display state — but only if no
+  // higher-priority state is needed. notification / working / thinking /
+  // error / sweeping / attention / carrying / juggling all preempt the walk,
+  // and we cancel the controller so the window stops moving on the next tick.
+  // Walking wins over idle and sleeping (the two default states); the
+  // comparison uses idle's priority as the threshold since walking itself
+  // sits at 0.5 (below idle's 1) in STATE_PRIORITY by design.
+  if (
+    ctx.roamingController
+    && typeof ctx.roamingController.isActive === "function"
+    && ctx.roamingController.isActive()
+  ) {
+    const idlePriority = getStatePriority("idle", STATE_PRIORITY);
+    if (getStatePriority(fromSessions, STATE_PRIORITY) <= idlePriority) {
+      return "walking";
+    }
+    if (typeof ctx.roamingController.cancel === "function") {
+      try { ctx.roamingController.cancel(); } catch {}
+    }
+  }
+  return fromSessions;
 }
 
 function setUpdateVisualState(kind) {
