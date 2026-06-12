@@ -29,6 +29,7 @@ describe("state-priority constants", () => {
       working: 3,
       thinking: 2,
       idle: 1,
+      walking: 0.5,
       sleeping: 0,
     });
     assert.deepStrictEqual([...SLEEP_SEQUENCE], ["yawning", "dozing", "collapsing", "sleeping", "waking"]);
@@ -36,6 +37,14 @@ describe("state-priority constants", () => {
     assert.strictEqual(Object.isFrozen(STATE_PRIORITY), true);
     assert.strictEqual(getStatePriority("working"), 3);
     assert.strictEqual(getStatePriority("unknown"), 0);
+  });
+
+  it("adds walking between idle and sleeping", () => {
+    assert.strictEqual(STATE_PRIORITY.walking, 0.5);
+    assert.ok(STATE_PRIORITY.walking < STATE_PRIORITY.idle);
+    assert.ok(STATE_PRIORITY.walking > STATE_PRIORITY.sleeping);
+    assert.ok(!SLEEP_SEQUENCE.has("walking"));
+    assert.ok(!ONESHOT_STATES.has("walking"));
   });
 
   it("creates fresh mutable constant copies for each state runtime", () => {
