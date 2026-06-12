@@ -54,10 +54,33 @@
     "attention":    ["happy.gif"],
     "notification": ["notification.gif"],
     "sleeping":     ["sleeping.gif"],
-    "waking":       ["waking.gif"]
+    "waking":       ["waking.gif"],
+    "walking": {
+      "_comment": "Optional walking state for idle desktop roaming. Provide all 9 direction files (8 directions + paused). Omit the walking slot entirely to disable roaming for this theme.",
+      "up":         ["walking-up.gif"],
+      "down":       ["walking-down.gif"],
+      "left":       ["walking-left.gif"],
+      "right":      ["walking-right.gif"],
+      "up-left":    ["walking-up-left.gif"],
+      "up-right":   ["walking-up-right.gif"],
+      "down-left":  ["walking-down-left.gif"],
+      "down-right": ["walking-down-right.gif"],
+      "paused":     ["walking-paused.gif"]
+    }
   },
 
   "_comment_optional_states": "Optional extras. fallbackTo is only allowed on error / attention / notification / sweeping / carrying / sleeping. Omit other optional states only if you are okay with them visually degrading to idle.",
+
+  "walkingRoaming": {
+    "_comment": "Idle desktop roaming config. enabled=true means the pet will walk around the desktop after mouse-idle when no AI sessions are active. Omit this block (or set enabled:false) to disable roaming for this theme.",
+    "enabled": true,
+    "walkDurationMs": 3500,
+    "pauseDurationMs": 2500,
+    "walkSpeedPxPerSec": 80,
+    "minTargetDistPx": 180,
+    "maxTargetDistPx": 320,
+    "avoidRadiusPx": 150
+  },
 
   "sleepSequence": {
     "_comment": "full = yawning/dozing/collapsing/waking all need real files. direct = go straight to sleeping after mouseSleepTimeout; waking becomes optional.",

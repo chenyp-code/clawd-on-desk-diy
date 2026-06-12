@@ -112,7 +112,27 @@
     ],
     "waking": [
       "calico-waking.apng"
-    ]
+    ],
+    "walking": {
+      "up": ["calico-walking-up.apng"],
+      "down": ["calico-walking-down.apng"],
+      "left": ["calico-walking-left.apng"],
+      "right": ["calico-walking-right.apng"],
+      "up-left": ["calico-walking-up-left.apng"],
+      "up-right": ["calico-walking-up-right.apng"],
+      "down-left": ["calico-walking-down-left.apng"],
+      "down-right": ["calico-walking-down-right.apng"],
+      "paused": ["calico-walking-paused.apng"]
+    }
+  },
+  "walkingRoaming": {
+    "enabled": true,
+    "walkDurationMs": 3500,
+    "pauseDurationMs": 2500,
+    "walkSpeedPxPerSec": 80,
+    "minTargetDistPx": 180,
+    "maxTargetDistPx": 320,
+    "avoidRadiusPx": 150
   },
   "workingTiers": [
     {

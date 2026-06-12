@@ -142,7 +142,27 @@
     ],
     "waking": [
       "cloudling-sleeping-to-idle.svg"
-    ]
+    ],
+    "walking": {
+      "up": ["cloudling-walking-up.svg"],
+      "down": ["cloudling-walking-down.svg"],
+      "left": ["cloudling-walking-left.svg"],
+      "right": ["cloudling-walking-right.svg"],
+      "up-left": ["cloudling-walking-up-left.svg"],
+      "up-right": ["cloudling-walking-up-right.svg"],
+      "down-left": ["cloudling-walking-down-left.svg"],
+      "down-right": ["cloudling-walking-down-right.svg"],
+      "paused": ["cloudling-walking-paused.svg"]
+    }
+  },
+  "walkingRoaming": {
+    "enabled": true,
+    "walkDurationMs": 3500,
+    "pauseDurationMs": 2500,
+    "walkSpeedPxPerSec": 80,
+    "minTargetDistPx": 180,
+    "maxTargetDistPx": 320,
+    "avoidRadiusPx": 150
   },
   "sleepSequence": {
     "mode": "full"

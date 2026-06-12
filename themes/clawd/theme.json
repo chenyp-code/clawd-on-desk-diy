@@ -92,7 +92,27 @@
     ],
     "waking": [
       "clawd-wake.svg"
-    ]
+    ],
+    "walking": {
+      "up": ["clawd-walking-up.svg"],
+      "down": ["clawd-walking-down.svg"],
+      "left": ["clawd-walking-left.svg"],
+      "right": ["clawd-walking-right.svg"],
+      "up-left": ["clawd-walking-up-left.svg"],
+      "up-right": ["clawd-walking-up-right.svg"],
+      "down-left": ["clawd-walking-down-left.svg"],
+      "down-right": ["clawd-walking-down-right.svg"],
+      "paused": ["clawd-walking-paused.svg"]
+    }
+  },
+  "walkingRoaming": {
+    "enabled": true,
+    "walkDurationMs": 3500,
+    "pauseDurationMs": 2500,
+    "walkSpeedPxPerSec": 80,
+    "minTargetDistPx": 180,
+    "maxTargetDistPx": 320,
+    "avoidRadiusPx": 150
   },
   "workingTiers": [
     {
