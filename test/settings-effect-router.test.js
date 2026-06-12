@@ -63,6 +63,9 @@ function createHarness(options = {}) {
     reclampPetAfterEdgePinningChange: () => calls.push(["reclampPetAfterEdgePinningChange"]),
     rebuildAllMenus: () => calls.push(["rebuildAllMenus"]),
     reconcilePowerSaveBlocker: () => calls.push(["reconcilePowerSaveBlocker"]),
+    roamingController: options.roamingController || {
+      refreshSettings: () => calls.push(["roamingController.refreshSettings"]),
+    },
     logWarn: (...args) => logs.push(args),
     ...(options.routerOptions || {}),
   });
@@ -244,6 +247,17 @@ describe("settings-effect-router", () => {
     assert.deepStrictEqual(calls, [
       ["updateMirrors", { allowEdgePinning: false }],
       ["reclampPetAfterEdgePinningChange"],
+    ]);
+  });
+
+  it("routes idleRoamingEnabled changes to roamingController.refreshSettings", () => {
+    const { calls, emit } = createHarness();
+
+    emit({ idleRoamingEnabled: false });
+
+    assert.deepStrictEqual(calls, [
+      ["updateMirrors", { idleRoamingEnabled: false }],
+      ["roamingController.refreshSettings"],
     ]);
   });
 

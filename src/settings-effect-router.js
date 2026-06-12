@@ -75,6 +75,7 @@ function createSettingsEffectRouter(options = {}) {
   const getMiniMode = options.getMiniMode || (() => false);
   const rebuildAllMenus = options.rebuildAllMenus || noop;
   const reconcilePowerSaveBlocker = options.reconcilePowerSaveBlocker || noop;
+  const roamingController = options.roamingController || null;
 
   let started = false;
   let unsubscribeSettings = null;
@@ -102,6 +103,9 @@ function createSettingsEffectRouter(options = {}) {
     }
     if ("keepAwakeWhileWorking" in changes) {
       safeCall(logWarn, "Clawd: reconcilePowerSaveBlocker failed:", reconcilePowerSaveBlocker);
+    }
+    if ("idleRoamingEnabled" in changes && roamingController && typeof roamingController.refreshSettings === "function") {
+      safeCall(logWarn, "Clawd: roamingController.refreshSettings failed:", roamingController.refreshSettings.bind(roamingController));
     }
     if ("lang" in changes) {
       safeCall(logWarn, "Clawd: dashboard lang broadcast failed:", sendDashboardI18n);
