@@ -73,6 +73,16 @@ const VISUAL_FALLBACK_STATES = new Set([
   "sleeping",
 ]);
 
+const DEFAULT_WALKING_ROAMING = Object.freeze({
+  enabled: true,
+  walkDurationMs: 3500,
+  pauseDurationMs: 2500,
+  walkSpeedPxPerSec: 80,
+  minTargetDistPx: 180,
+  maxTargetDistPx: 320,
+  avoidRadiusPx: 150,
+});
+
 function validateTheme(cfg) {
   const errors = [];
   const sleepMode = deriveSleepMode(cfg);
@@ -138,6 +148,54 @@ function validateTheme(cfg) {
     }
   }
 
+  if (cfg.states && cfg.states.walking !== undefined) {
+    const walking = cfg.states.walking;
+    if (!isPlainObject(walking) || Array.isArray(walking)) {
+      errors.push("states.walking must be an object with directional entries");
+    } else {
+      const requiredDirs = [
+        "up", "down", "left", "right",
+        "up-left", "up-right",
+        "down-left", "down-right",
+        "paused",
+      ];
+      for (const dir of requiredDirs) {
+        const entry = walking[dir];
+        if (!Array.isArray(entry) || entry.length === 0 || typeof entry[0] !== "string") {
+          errors.push(`states.walking.${dir} must be a non-empty array of file names`);
+        }
+      }
+    }
+  }
+
+  if (cfg.walkingRoaming !== undefined) {
+    const wr = cfg.walkingRoaming;
+    if (!isPlainObject(wr) || Array.isArray(wr)) {
+      errors.push("walkingRoaming must be an object");
+    } else {
+      if (wr.enabled !== undefined && typeof wr.enabled !== "boolean") {
+        errors.push("walkingRoaming.enabled must be boolean");
+      }
+      const intFields = ["walkDurationMs", "pauseDurationMs"];
+      for (const f of intFields) {
+        if (wr[f] !== undefined && (!Number.isInteger(wr[f]) || wr[f] < 0)) {
+          errors.push(`walkingRoaming.${f} must be a non-negative integer`);
+        }
+      }
+      const numFields = [
+        "walkSpeedPxPerSec",
+        "minTargetDistPx",
+        "maxTargetDistPx",
+        "avoidRadiusPx",
+      ];
+      for (const f of numFields) {
+        if (wr[f] !== undefined && (!Number.isFinite(wr[f]) || wr[f] < 0)) {
+          errors.push(`walkingRoaming.${f} must be a non-negative finite number`);
+        }
+      }
+    }
+  }
+
   if (cfg.updateVisuals !== undefined) {
     if (!isPlainObject(cfg.updateVisuals)) {
       errors.push("updateVisuals must be an object when present");
@@ -192,6 +250,8 @@ function validateTheme(cfg) {
   }
 
   for (const stateKey of fallbackStateKeys) {
+    const startEntry = normalizedStates[stateKey];
+    if (!startEntry || !startEntry.fallbackTo) continue;
     const visited = new Set([stateKey]);
     let hops = 0;
     let cursor = stateKey;
@@ -546,6 +606,9 @@ function mergeDefaults(raw, themeId, isBuiltin) {
   theme.wideHitboxFiles = raw.wideHitboxFiles || [];
   theme.sleepingHitboxFiles = raw.sleepingHitboxFiles || [];
 
+  // walkingRoaming
+  theme.walkingRoaming = { ...DEFAULT_WALKING_ROAMING, ...(raw.walkingRoaming || {}) };
+
   // trustedRuntime grants script execution capability, so it requires loader-derived built-in trust.
   theme.trustedRuntime = normalizeTrustedRuntime(raw.trustedRuntime, isBuiltin, themeId);
   theme.rendering = normalizeRendering(raw.rendering);
@@ -705,6 +768,7 @@ module.exports = {
   DEFAULT_OBJECT_SCALE,
   DEFAULT_LAYOUT,
   DEFAULT_EYE_TRACKING,
+  DEFAULT_WALKING_ROAMING,
   REQUIRED_STATES,
   FULL_SLEEP_REQUIRED_STATES,
   MINI_REQUIRED_STATES,

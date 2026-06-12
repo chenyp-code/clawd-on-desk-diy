@@ -46,6 +46,90 @@ describe("theme schema validation", () => {
     assert.ok(errors.some((error) => error.includes("updateBubbleAnchorBox must include finite")));
   });
 
+  it("accepts walking state slot and walkingRoaming config", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      states: {
+        idle: ["idle.svg"],
+        yawning: ["yawning.svg"],
+        dozing: ["dozing.svg"],
+        collapsing: ["collapsing.svg"],
+        thinking: ["thinking.svg"],
+        working: ["working.svg"],
+        sleeping: ["sleeping.svg"],
+        waking: ["waking.svg"],
+        walking: {
+          up: ["walk-up.svg"],
+          down: ["walk-down.svg"],
+          left: ["walk-left.svg"],
+          right: ["walk-right.svg"],
+          "up-left": ["walk-ul.svg"],
+          "up-right": ["walk-ur.svg"],
+          "down-left": ["walk-dl.svg"],
+          "down-right": ["walk-dr.svg"],
+          paused: ["walk-paused.svg"],
+        },
+      },
+      walkingRoaming: {
+        enabled: true,
+        walkDurationMs: 3500,
+        pauseDurationMs: 2500,
+        walkSpeedPxPerSec: 80,
+        minTargetDistPx: 180,
+        maxTargetDistPx: 320,
+        avoidRadiusPx: 150,
+      },
+    }));
+    assert.deepStrictEqual(errors, []);
+  });
+
+  it("rejects malformed walkingRoaming config", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      walkingRoaming: {
+        enabled: "yes",
+        walkDurationMs: -100,
+      },
+    }));
+    assert.ok(errors.some((e) => e.includes("walkingRoaming.enabled")));
+    assert.ok(errors.some((e) => e.includes("walkingRoaming.walkDurationMs")));
+  });
+
+  it("rejects walking state with missing direction", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      states: {
+        idle: ["idle.svg"],
+        yawning: ["yawning.svg"],
+        dozing: ["dozing.svg"],
+        collapsing: ["collapsing.svg"],
+        thinking: ["thinking.svg"],
+        working: ["working.svg"],
+        sleeping: ["sleeping.svg"],
+        waking: ["waking.svg"],
+        walking: {
+          up: ["walk-up.svg"],
+          // missing all other required directions
+        },
+      },
+    }));
+    assert.ok(errors.some((e) => e.includes("states.walking.left")));
+  });
+
+  it("rejects walking state when not an object", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      states: {
+        idle: ["idle.svg"],
+        yawning: ["yawning.svg"],
+        dozing: ["dozing.svg"],
+        collapsing: ["collapsing.svg"],
+        thinking: ["thinking.svg"],
+        working: ["working.svg"],
+        sleeping: ["sleeping.svg"],
+        waking: ["waking.svg"],
+        walking: ["walking-up.svg"],
+      },
+    }));
+    assert.ok(errors.some((e) => e.includes("states.walking must be an object")));
+  });
+
   it("treats sleepSequence.mode=direct as not requiring full sleep art", () => {
     const errors = schema.validateTheme(validThemeJson({
       sleepSequence: { mode: "direct" },
