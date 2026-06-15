@@ -154,4 +154,67 @@ describe("RoamingController lifecycle", () => {
     ctrl.start();
     assert.strictEqual(ctrl.isActive(), false);
   });
+
+  it("cancels after maxRoamingDurationMs elapses", () => {
+    // Use mock timers so the setTimeout(pauseDurationMs) chain in walk()
+    // runs deterministically. NB: Node's mock.timers only fires one
+    // timer per tick(), and the animator runs many recursive setTimeouts
+    // — one per 16ms frame — so a single long tick won't drain them all.
+    // We tick in a loop, one setTimeout per 50ms.
+    // Total frames: walk duration floored at 800ms → ~50 frames.
+    // After the first walk completes, schedulePause + walk() runs again,
+    // and the cap check fires.
+    mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+    try {
+      const { ctrl, ctx } = loadController({
+        themeOverrides: {
+          walkingRoaming: {
+            maxRoamingDurationMs: 100,
+            pauseDurationMs: 5,
+            walkDurationMs: 800,
+          },
+        },
+      });
+      // Provide a non-zero target so walk() actually moves (otherwise it
+      // goes straight into pause and never makes progress toward the cap).
+      ctx.getNearestWorkArea = () => ({ x: -1000, y: -1000, width: 4000, height: 2000 });
+      ctrl.start();
+      assert.strictEqual(ctrl.isActive(), true);
+      // First walk: 800ms / 16ms = 50 animator frames. Then 5ms pause
+      // timer (fires in next tick since 5 < 50). Then walk() runs again
+      // with Date.now() well past the 100ms cap → cap fires.
+      // 200 ticks × 50ms = 10000ms of mock time, comfortably past all of it.
+      for (let i = 0; i < 200; i++) mock.timers.tick(50);
+      assert.strictEqual(ctrl.isActive(), false);
+      // cancel() should have routed to ctx.resolveDisplayState() ("idle")
+      // and called applyState with it.
+      assert.ok(ctx.applyState.mock.calls.some((c) => c.arguments[0] === "idle"));
+    } finally {
+      mock.timers.reset();
+    }
+  });
+
+  it("maxRoamingDurationMs=0 disables the cap (no auto-cancel)", () => {
+    mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+    try {
+      const { ctrl, ctx } = loadController({
+        themeOverrides: {
+          walkingRoaming: {
+            maxRoamingDurationMs: 0,
+            pauseDurationMs: 5,
+          },
+        },
+      });
+      ctx.getNearestWorkArea = () => ({ x: -1000, y: -1000, width: 4000, height: 2000 });
+      ctrl.start();
+      assert.strictEqual(ctrl.isActive(), true);
+      // Past where the cap would normally fire. Even with the walk/pause
+      // loop running many cycles, no cap should fire.
+      for (let i = 0; i < 200; i++) mock.timers.tick(50);
+      assert.strictEqual(ctrl.isActive(), true);
+      ctrl.cancel();
+    } finally {
+      mock.timers.reset();
+    }
+  });
 });

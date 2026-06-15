@@ -1270,4 +1270,41 @@ describe("prefs.save", () => {
       // explode: absent
     });
   });
+
+  it("themeOverrides: normalize validates walking directional sub-map and drops unknown directions", () => {
+    const validated = prefs.validate({
+      ...prefs.getDefaults(),
+      themeOverrides: {
+        clawd: {
+          states: {
+            walking: {
+              up: { file: "walk-up.svg", transition: { in: 100 } },
+              down: { file: "walk-down.svg" },
+              sideways: { file: "bogus.svg" },  // invalid direction
+            },
+          },
+        },
+      },
+    });
+    assert.deepStrictEqual(validated.themeOverrides.clawd.states.walking, {
+      up: { file: "walk-up.svg", transition: { in: 100 } },
+      down: { file: "walk-down.svg" },
+    });
+  });
+
+  it("themeOverrides: legacy flat walking entry is dropped (only valid under states)", () => {
+    const validated = prefs.validate({
+      ...prefs.getDefaults(),
+      themeOverrides: {
+        clawd: {
+          walking: { up: { file: "walk-up.svg" } },
+          states: { idle: { file: "i.svg" } },
+        },
+      },
+    });
+    // legacy walking should NOT appear in states; only the explicit states block is used
+    assert.ok(validated.themeOverrides.clawd.states);
+    assert.ok(!validated.themeOverrides.clawd.states.walking);
+    assert.deepStrictEqual(validated.themeOverrides.clawd.states.idle, { file: "i.svg" });
+  });
 });

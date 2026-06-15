@@ -327,6 +327,73 @@ describe("resolveDisplayState()", () => {
     assert.strictEqual(api2.resolveDisplayState(), "idle");
     api2.cleanup();
   });
+
+  // ── CLAWD_FORCE_WALK preemption ────────────────────────────────────────────
+  // Force-walk is a debug override for the "no sessions" start guard (see
+  // roaming-controller.canStartNow + tick.js). It must NOT prevent a
+  // higher-priority state from cancelling the walk — otherwise the pet
+  // keeps moving while showing a different state's sprite and bubble.
+  it("force-walk + no sessions → walking (no cancel)", () => {
+    const prev = process.env.CLAWD_FORCE_WALK;
+    process.env.CLAWD_FORCE_WALK = "1";
+    try {
+      const ctx = makeCtx();
+      let cancelled = 0;
+      ctx.roamingController = {
+        isActive: () => true,
+        cancel: () => { cancelled += 1; },
+      };
+      const api2 = require("../src/state")(ctx);
+      assert.strictEqual(api2.resolveDisplayState(), "walking");
+      assert.strictEqual(cancelled, 0);
+      api2.cleanup();
+    } finally {
+      if (prev === undefined) delete process.env.CLAWD_FORCE_WALK;
+      else process.env.CLAWD_FORCE_WALK = prev;
+    }
+  });
+
+  it("force-walk + working session → working + controller cancelled", () => {
+    const prev = process.env.CLAWD_FORCE_WALK;
+    process.env.CLAWD_FORCE_WALK = "1";
+    try {
+      const ctx = makeCtx();
+      let cancelled = 0;
+      ctx.roamingController = {
+        isActive: () => true,
+        cancel: () => { cancelled += 1; },
+      };
+      const api2 = require("../src/state")(ctx);
+      api2.sessions.set("s1", rawSession("working"));
+      assert.strictEqual(api2.resolveDisplayState(), "working");
+      assert.strictEqual(cancelled, 1, "force-walk must not block preemption by a higher-priority state");
+      api2.cleanup();
+    } finally {
+      if (prev === undefined) delete process.env.CLAWD_FORCE_WALK;
+      else process.env.CLAWD_FORCE_WALK = prev;
+    }
+  });
+
+  it("force-walk + error session → error + controller cancelled", () => {
+    const prev = process.env.CLAWD_FORCE_WALK;
+    process.env.CLAWD_FORCE_WALK = "1";
+    try {
+      const ctx = makeCtx();
+      let cancelled = 0;
+      ctx.roamingController = {
+        isActive: () => true,
+        cancel: () => { cancelled += 1; },
+      };
+      const api2 = require("../src/state")(ctx);
+      api2.sessions.set("s1", rawSession("error"));
+      assert.strictEqual(api2.resolveDisplayState(), "error");
+      assert.strictEqual(cancelled, 1);
+      api2.cleanup();
+    } finally {
+      if (prev === undefined) delete process.env.CLAWD_FORCE_WALK;
+      else process.env.CLAWD_FORCE_WALK = prev;
+    }
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -657,6 +724,39 @@ describe("wake poll behavior", () => {
     mock.timers.tick(500); // wake poll delay
     mock.timers.tick(200); // poll fires, checks DEEP_SLEEP_TIMEOUT
     assert.strictEqual(api.getCurrentState(), "collapsing");
+  });
+
+  it("sleeping + maxSleepDurationMs elapses → waking (voluntary long-sleep cap)", () => {
+    const theme = cloneTheme(_defaultTheme);
+    theme.walkingRoaming = { ...(theme.walkingRoaming || {}), maxSleepDurationMs: 100 };
+    ctx.theme = theme;
+    api.refreshTheme();
+
+    api.applyState("sleeping");
+    assert.strictEqual(api.getCurrentState(), "sleeping");
+    // Wake poll delay (500ms) brings total elapsed well above the 100ms cap.
+    mock.timers.tick(500);
+    // First interval tick triggers the cap check and transitions to waking.
+    mock.timers.tick(200);
+    assert.strictEqual(api.getCurrentState(), "waking");
+  });
+
+  it("maxSleepDurationMs=0 disables the long-sleep cap (no auto-wake)", () => {
+    const theme = cloneTheme(_defaultTheme);
+    theme.walkingRoaming = { ...(theme.walkingRoaming || {}), maxSleepDurationMs: 0 };
+    ctx.theme = theme;
+    api.refreshTheme();
+
+    api.applyState("sleeping");
+    mock.timers.tick(500);
+    mock.timers.tick(60000); // 1 minute — would have triggered with default 60s cap
+    assert.strictEqual(api.getCurrentState(), "sleeping");
+  });
+
+  it("default theme has maxSleepDurationMs of 60000 (1 minute)", () => {
+    // Sanity check: the new default is wired through. If a future refactor
+    // accidentally drops it, this test will catch the regression.
+    assert.strictEqual(_defaultTheme.walkingRoaming.maxSleepDurationMs, 60000);
   });
 });
 

@@ -114,15 +114,15 @@
       "calico-waking.apng"
     ],
     "walking": {
-      "up": ["calico-idle-follow.svg"],
-      "down": ["calico-idle-follow.svg"],
-      "left": ["calico-idle-follow.svg"],
-      "right": ["calico-idle-follow.svg"],
-      "up-left": ["calico-idle-follow.svg"],
-      "up-right": ["calico-idle-follow.svg"],
-      "down-left": ["calico-idle-follow.svg"],
-      "down-right": ["calico-idle-follow.svg"],
-      "paused": ["calico-idle-follow.svg"]
+      "up": ["calico-walking-up.apng"],
+      "down": ["calico-walking-down.apng"],
+      "left": ["calico-walking-left.apng"],
+      "right": ["calico-walking-right.apng"],
+      "up-left": ["calico-walking-up-left.apng"],
+      "up-right": ["calico-walking-up-right.apng"],
+      "down-left": ["calico-walking-down-left.apng"],
+      "down-right": ["calico-walking-down-right.apng"],
+      "paused": ["calico-walking-paused.apng"]
     }
   },
   "walkingRoaming": {

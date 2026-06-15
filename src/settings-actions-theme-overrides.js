@@ -3,6 +3,7 @@
 const { normalizeThemeOverrides } = require("./prefs");
 const { requireString } = require("./settings-validators");
 const { isPlainObject } = require("./theme-loader");
+const { WALKING_DIRECTIONS } = require("./walking-target-picker");
 
 const ANIMATION_OVERRIDES_EXPORT_VERSION = 1;
 
@@ -26,16 +27,28 @@ const ONESHOT_OVERRIDE_STATES = new Set([
   "carrying",
 ]);
 
+const WALKING_DIRECTION_KEYS_DESC = WALKING_DIRECTIONS.join(", ");
+
 function cloneStateOverrides(themeMap) {
   const out = {};
   if (!isPlainObject(themeMap)) return out;
   if (isPlainObject(themeMap.states)) {
     for (const [stateKey, entry] of Object.entries(themeMap.states)) {
-      if (isPlainObject(entry)) out[stateKey] = { ...entry };
+      if (!isPlainObject(entry)) continue;
+      if (stateKey === "walking") {
+        const walking = {};
+        for (const [dir, dirEntry] of Object.entries(entry)) {
+          if (isPlainObject(dirEntry)) walking[dir] = { ...dirEntry };
+        }
+        if (Object.keys(walking).length > 0) out.walking = walking;
+        continue;
+      }
+      out[stateKey] = { ...entry };
     }
   }
   for (const [key, entry] of Object.entries(themeMap)) {
     if (THEME_OVERRIDE_RESERVED_KEYS.has(key)) continue;
+    if (key === "walking") continue;
     if (!out[key] && isPlainObject(entry)) out[key] = { ...entry };
   }
   return out;
@@ -200,8 +213,9 @@ function setAnimationOverride(payload, deps) {
   const { themeId, slotType } = payload;
   const idCheck = _validateAnimationOverrideThemeId(themeId);
   if (idCheck.status !== "ok") return idCheck;
-  if (slotType !== "state" && slotType !== "tier" && slotType !== "idleAnimation" && slotType !== "reaction") {
-    return { status: "error", message: "setAnimationOverride.slotType must be 'state', 'tier', 'idleAnimation', or 'reaction'" };
+  if (slotType !== "state" && slotType !== "tier" && slotType !== "idleAnimation"
+      && slotType !== "reaction" && slotType !== "walkingDirection") {
+    return { status: "error", message: "setAnimationOverride.slotType must be 'state', 'tier', 'idleAnimation', 'reaction', or 'walkingDirection'" };
   }
 
   const touchesFile = Object.prototype.hasOwnProperty.call(payload, "file");
@@ -339,7 +353,7 @@ function setAnimationOverride(payload, deps) {
     }
     if (Object.keys(nextEntry).length > 0) nextIdleAnimations[originalFile] = nextEntry;
     else delete nextIdleAnimations[originalFile];
-  } else {
+  } else if (slotType === "reaction") {
     const { reactionKey } = payload;
     if (!REACTION_KEYS.has(reactionKey)) {
       return { status: "error", message: "setAnimationOverride.reactionKey must be one of: drag, clickLeft, clickRight, annoyed, double" };
@@ -369,6 +383,35 @@ function setAnimationOverride(payload, deps) {
     }
     if (Object.keys(nextEntry).length > 0) nextReactions[reactionKey] = nextEntry;
     else delete nextReactions[reactionKey];
+  } else if (slotType === "walkingDirection") {
+    const { walkingDirection } = payload;
+    if (!WALKING_DIRECTIONS.includes(walkingDirection)) {
+      return { status: "error", message: `setAnimationOverride.walkingDirection must be one of: ${WALKING_DIRECTION_KEYS_DESC}` };
+    }
+    if (touchesAutoReturn) {
+      return { status: "error", message: "setAnimationOverride.autoReturnMs is not supported for walkingDirection slots" };
+    }
+    if (touchesDuration) {
+      return { status: "error", message: "setAnimationOverride.durationMs is not supported for walkingDirection slots" };
+    }
+    const walkingMap = nextStates.walking || {};
+    const nextDirEntry = { ...(walkingMap[walkingDirection] || {}) };
+    if (touchesFile) {
+      if (payload.file === null) {
+        delete nextDirEntry.file;
+        delete nextDirEntry.sourceThemeId;
+      } else {
+        nextDirEntry.file = payload.file;
+      }
+    }
+    if (touchesTransition) {
+      if (payload.transition === null || transitionMatchesDefault) delete nextDirEntry.transition;
+      else nextDirEntry.transition = normalizedTransition;
+    }
+    if (Object.keys(nextDirEntry).length > 0) walkingMap[walkingDirection] = nextDirEntry;
+    else delete walkingMap[walkingDirection];
+    if (Object.keys(walkingMap).length > 0) nextStates.walking = walkingMap;
+    else delete nextStates.walking;
   }
 
   const nextThemeMap = buildThemeOverrideMap({

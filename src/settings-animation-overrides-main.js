@@ -5,6 +5,7 @@ const defaultPath = require("path");
 const { pathToFileURL } = require("url");
 const defaultAnimationCycle = require("./animation-cycle");
 const { ANIMATION_OVERRIDES_EXPORT_VERSION } = require("./settings-actions");
+const { WALKING_DIRECTIONS } = require("./walking-target-picker");
 
 const ANIMATION_OVERRIDE_ASSET_EXTS = new Set([".svg", ".gif", ".apng", ".png", ".webp", ".jpg", ".jpeg"]);
 const ANIMATION_OVERRIDE_PREVIEW_POSTER_SIZE = { width: 176, height: 144 };
@@ -922,6 +923,56 @@ function createSettingsAnimationOverridesMain(options = {}) {
     return cards;
   }
 
+  function buildWalkingDirectionCards(themeOverrideMap) {
+    const activeTheme = getActiveTheme();
+    if (!activeTheme || !activeTheme.states || !isPlainObject(activeTheme.states.walking)) return [];
+    const walking = activeTheme.states.walking;
+    const walkingOverrides = themeOverrideMap && themeOverrideMap.states
+      && isPlainObject(themeOverrideMap.states.walking)
+      ? themeOverrideMap.states.walking
+      : {};
+    const cards = [];
+    for (const dir of WALKING_DIRECTIONS) {
+      const dirFiles = Array.isArray(walking[dir]) ? walking[dir] : [];
+      const baseFile = dirFiles[0];
+      if (!baseFile) continue;
+      const overrideEntry = walkingOverrides[dir] || null;
+      const currentFile = overrideEntry && typeof overrideEntry.file === "string" && overrideEntry.file
+        ? overrideEntry.file
+        : baseFile;
+      const preview = buildAnimationAssetPreview(currentFile);
+      const timingHint = buildTimingHint(currentFile, null);
+      cards.push({
+        id: `walkingDirection:${dir}`,
+        slotType: "walkingDirection",
+        sectionId: "walking",
+        stateKey: "walking",
+        walkingDirection: dir,
+        triggerKind: "walking",
+        baseFile,
+        currentFile,
+        currentFileUrl: preview.fileUrl,
+        currentFilePreviewUrl: preview.previewImageUrl,
+        needsScriptedPreviewPoster: preview.needsScriptedPreviewPoster,
+        currentFilePreviewPosterCacheKey: preview.previewPosterCacheKey,
+        previewPosterPending: preview.previewPosterPending,
+        bindingLabel: `states.walking.${dir}[0]`,
+        transition: readResolvedTransition(currentFile),
+        transitionThemeDefault: readThemeDefaultTransition(currentFile),
+        hasTransitionOverride: hasTransitionOverride(overrideEntry),
+        supportsAutoReturn: false,
+        supportsDuration: false,
+        autoReturnMs: null,
+        durationMs: null,
+        hasAutoReturnOverride: false,
+        ...timingHint,
+        displayHintWarning: false,
+        displayHintTarget: null,
+      });
+    }
+    return cards;
+  }
+
   function pushSection(sections, id, mode, cards) {
     if (!Array.isArray(cards) || cards.length === 0) return;
     sections.push({ id, mode: mode || null, cards });
@@ -1002,6 +1053,9 @@ function createSettingsAnimationOverridesMain(options = {}) {
     }
     pushSection(sections, "sleep", sleepMode, sleepCards);
 
+    const walkingCards = buildWalkingDirectionCards(themeOverrideMap);
+    pushSection(sections, "walking", null, walkingCards);
+
     const reactionCards = buildReactionCards(themeOverrideMap);
     pushSection(sections, "reactions", null, reactionCards);
 
@@ -1029,7 +1083,7 @@ function createSettingsAnimationOverridesMain(options = {}) {
 
     for (const section of sections) {
       if (!section || !Array.isArray(section.cards)) continue;
-      if (section.id === "reactions") continue;
+      if (section.id === "reactions" || section.id === "walking") continue;
       for (const card of section.cards) {
         const {
           wideHitboxEnabled,
@@ -1112,11 +1166,15 @@ function createSettingsAnimationOverridesMain(options = {}) {
     return data;
   }
 
-  function runAnimationOverridePreview(stateKey, file, durationMs) {
+  function runAnimationOverridePreview(stateKey, file, durationMs, walkingDirection) {
     clearPreviewTimer();
     const stateRuntime = getStateRuntime();
     try {
-      stateRuntime.applyState(stateKey, file);
+      if (stateKey === "walking" && walkingDirection) {
+        stateRuntime.applyState(stateKey, file, { direction: walkingDirection });
+      } else {
+        stateRuntime.applyState(stateKey, file);
+      }
     } catch (err) {
       return { status: "error", message: `previewAnimationOverride: ${err && err.message}` };
     }
@@ -1143,7 +1201,7 @@ function createSettingsAnimationOverridesMain(options = {}) {
     if (!payload || typeof payload !== "object") {
       return { status: "error", message: "previewAnimationOverride payload must be an object" };
     }
-    const { stateKey, file, durationMs } = payload;
+    const { stateKey, file, durationMs, walkingDirection } = payload;
     if (typeof stateKey !== "string" || !stateKey) {
       return { status: "error", message: "previewAnimationOverride.stateKey must be a non-empty string" };
     }
@@ -1155,10 +1213,10 @@ function createSettingsAnimationOverridesMain(options = {}) {
       return { status: "error", message: "previewAnimationOverride requires state runtime" };
     }
     if (getThemeReloadInProgress()) {
-      pendingPostReloadTasks.push(() => runAnimationOverridePreview(stateKey, file, durationMs));
+      pendingPostReloadTasks.push(() => runAnimationOverridePreview(stateKey, file, durationMs, walkingDirection));
       return { status: "ok", deferred: true };
     }
-    return runAnimationOverridePreview(stateKey, file, durationMs);
+    return runAnimationOverridePreview(stateKey, file, durationMs, walkingDirection);
   }
 
   function previewReaction(payload) {

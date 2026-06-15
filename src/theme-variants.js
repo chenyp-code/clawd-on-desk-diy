@@ -153,6 +153,32 @@ function applyUserOverridesPatch(raw, overrides) {
       : null;
     for (const [stateKey, entry] of Object.entries(stateOverrides)) {
       if (!isPlainObject(entry)) continue;
+      // Walking is a directional map (up/down/left/right/.../paused) — each
+      // direction's entry has the same shape as a single state override
+      // ({ file, transition }), but they live under theme.states.walking[dir]
+      // as a files array rather than a binding. Handle it before the generic
+      // single-file path.
+      if (stateKey === "walking") {
+        const rawWalking = nextStates.walking;
+        if (!isPlainObject(rawWalking)) continue;
+        const nextWalking = { ...rawWalking };
+        for (const [dir, dirEntry] of Object.entries(entry)) {
+          if (!isPlainObject(dirEntry)) continue;
+          const dirFiles = Array.isArray(nextWalking[dir]) ? [...nextWalking[dir]] : [];
+          if (dirFiles.length === 0 && !(typeof dirEntry.file === "string" && dirEntry.file)) continue;
+          if (typeof dirEntry.file === "string" && dirEntry.file) {
+            if (dirFiles.length > 0) dirFiles[0] = dirEntry.file;
+            else dirFiles.push(dirEntry.file);
+          }
+          nextWalking[dir] = dirFiles;
+          const transitionTarget = (typeof dirEntry.file === "string" && dirEntry.file)
+            ? dirEntry.file
+            : (dirFiles[0] || null);
+          if (transitionTarget) applyTransitionOverride(patched, transitionTarget, dirEntry.transition);
+        }
+        nextStates.walking = nextWalking;
+        continue;
+      }
       const rawStateEntry = nextStates[stateKey];
       const rawMiniEntry = nextMiniStates ? nextMiniStates[stateKey] : undefined;
       const targetCollection = rawStateEntry !== undefined

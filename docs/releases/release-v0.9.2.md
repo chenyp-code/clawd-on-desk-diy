@@ -149,3 +149,69 @@ built-in themes plus the template).
   The 13 failures in `test/hermes-plugin.test.js` are pre-existing
   and caused by `python` not being on PATH (Windows exit code 9009);
   they are unrelated to this release. The other 3804 tests pass.
+
+### Post-release refinements (folded back into v0.9.2)
+
+The following fixes landed on the `feature/walking-roaming` branch
+after the v0.9.2 tag was cut. They are included in the published
+v0.9.2 artifact.
+
+#### Bug Fixes
+
+- **Walking stays inside the work area on multi-display setups.**
+  The target picker used to clamp against the bounding box of every
+  attached display, which let the pet land in the gap between
+  monitors or hang off the edge of a multi-display desktop. It now
+  clamps against the work area of the display the pet's center point
+  actually lies on, via `findNearestWorkArea`. The picker also
+  filters out directions that would walk the pet further into the
+  edge it's already touching (5 px threshold), so it can no longer
+  pick "left" when its left edge is flush against the work-area left
+  boundary.
+- **Renderer catches up with main's walking state on startup.**
+  `startMainTick()` runs before the renderer's `did-finish-load`
+  fires; the first `applyState("walking", …)` IPC event was therefore
+  sent to a renderer that had no listener yet, and was dropped.
+  `syncRendererStateAfterLoad()` then unconditionally forced
+  `applyState("idle", …)`, so the window visibly walked while the
+  renderer kept showing the idle SVG until the next direction
+  change. The sync now re-sends the current walking file (looked up
+  by the controller's current direction) when the controller is
+  already active at startup.
+- **Walk and sleep alternate instead of running forever.** Both
+  `walking` and `sleeping` could latch into their respective cycles
+  indefinitely. The new `maxRoamingDurationMs` (default 60 s) and
+  `maxSleepDurationMs` (default 60 s) caps let the pet voluntarily
+  hand off to the other state once the cap elapses, so a long
+  desktop roam always gives way to a doze and vice versa. Set
+  either cap to `0` to disable it. The schema rejects negative or
+  non-integer values.
+
+#### Improvements
+
+- **Directional walking override in animation overrides.** The
+  per-state override normalizer now understands that `walking` is
+  a directional map (`{ up, down, left, right, up-left, up-right,
+  down-left, down-right, paused }`), not a single `{ file,
+  transition }` entry. Each direction accepts the same per-file
+  `file` / `transition` / `sourceThemeId` overrides as other
+  states, and the settings UI surfaces them.
+- **Calico theme ships real walking art.** The 9 placeholder
+  `calico-walking-*.svg` files in `themes/calico/assets/` are
+  replaced with real directional APNGs (`calico-walking-up.apng`,
+  `…-down.apng`, `…-left.apng`, `…-right.apng`, the four diagonals,
+  and `…-paused.apng`), and `themes/calico/theme.json` points the
+  `walking` state at them.
+
+#### Test coverage
+
+- New tests: `test/state.test.js` covers the new
+  `maxRoamingDurationMs`/`maxSleepDurationMs` schema defaults and
+  the cap enforcement paths in `state.js`; `test/roaming-controller.test.js`
+  covers the controller-level walk cap (cancels after the cap and
+  stays active when the cap is `0`); `test/walking-target-picker.test.js`
+  covers the new edge filtering and nearest-work-area clamp; and
+  `test/prefs.test.js`, `test/theme-variants.test.js`,
+  `test/theme-schema.test.js`, and
+  `test/settings-actions-theme-overrides.test.js` cover the
+  directional walking override normalization path.

@@ -21,6 +21,7 @@ const path = require("path");
 const { isPlainObject } = require("./theme-loader");
 const { normalizeShortcuts, getDefaultShortcuts } = require("./shortcut-actions");
 const { isValidDisplaySnapshot } = require("./work-area");
+const { WALKING_DIRECTIONS } = require("./walking-target-picker");
 const { normalizeRemoteSsh, getDefaults: getRemoteSshDefaults } = require("./remote-ssh-profile");
 const {
   cloneDefaultTelegramApproval,
@@ -581,6 +582,31 @@ function normalizeSlotOverride(entry, { allowDisabled = true } = {}) {
 
 const REACTION_KEYS = new Set(["drag", "clickLeft", "clickRight", "annoyed", "double"]);
 
+// Walking is a directional map state: { up: { file, transition }, down: ..., ... }.
+// Other state slots are single { file, transition, disabled } entries.
+// WALKING_DIRECTIONS is imported from walking-target-picker (canonical 9-key list).
+
+function normalizeWalkingDirectionEntry(entry) {
+  if (!isPlainObject(entry)) return null;
+  const out = {};
+  if (typeof entry.file === "string" && entry.file) out.file = entry.file;
+  if (typeof entry.sourceThemeId === "string" && entry.sourceThemeId) out.sourceThemeId = entry.sourceThemeId;
+  const transition = normalizeTransitionOverride(entry.transition);
+  if (transition) out.transition = transition;
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+function normalizeWalkingDirectionalOverride(value) {
+  if (!isPlainObject(value)) return null;
+  const out = {};
+  for (const [dir, entry] of Object.entries(value)) {
+    if (!WALKING_DIRECTIONS.includes(dir)) continue;
+    const cleanEntry = normalizeWalkingDirectionEntry(entry);
+    if (cleanEntry) out[dir] = cleanEntry;
+  }
+  return Object.keys(out).length > 0 ? out : null;
+}
+
 // Per-file hitbox override: { file.svg: boolean }.
 // true  = force the file INTO the wide-hitbox set (even if the theme author didn't list it)
 // false = force the file OUT of the wide-hitbox set (even if the theme author did list it)
@@ -622,6 +648,11 @@ function normalizeStateOverridesMap(value) {
   const out = {};
   for (const [stateKey, entry] of Object.entries(value)) {
     if (typeof stateKey !== "string" || !stateKey) continue;
+    if (stateKey === "walking") {
+      const cleanWalking = normalizeWalkingDirectionalOverride(entry);
+      if (cleanWalking) out.walking = cleanWalking;
+      continue;
+    }
     const cleanEntry = normalizeSlotOverride(entry, { allowDisabled: true });
     if (cleanEntry) out[stateKey] = cleanEntry;
   }
@@ -702,6 +733,9 @@ function normalizeThemeOverrides(value, defaultsValue) {
     const legacyStates = {};
     for (const [key, entry] of Object.entries(themeMap)) {
       if (key === "states" || key === "tiers" || key === "timings" || key === "idleAnimations" || key === "reactions" || key === "hitbox" || key === "sounds") continue;
+      // `walking` has a directional-map shape that doesn't fit normalizeSlotOverride;
+      // it's only valid under themeMap.states in the new format.
+      if (key === "walking") continue;
       const cleanEntry = normalizeSlotOverride(entry, { allowDisabled: true });
       if (cleanEntry) legacyStates[key] = cleanEntry;
     }

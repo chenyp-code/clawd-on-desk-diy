@@ -173,6 +173,34 @@ describe("theme user override patching", () => {
     assert.notStrictEqual(patched.workingTiers, raw.workingTiers);
   });
 
+  it("patches walking state direction overrides into theme.states.walking", () => {
+    const raw = baseTheme({
+      states: {
+        ...baseTheme().states,
+        walking: {
+          up: ["up.svg"],
+          down: ["down.svg"],
+          paused: ["paused.svg"],
+        },
+      },
+    });
+    const patched = applyUserOverridesPatch(raw, {
+      states: {
+        walking: {
+          up: { file: "../up-custom.svg", transition: { in: 50 } },
+          down: { file: "../down-custom.svg" },
+        },
+      },
+    });
+    assert.deepStrictEqual(patched.states.walking.up, ["../up-custom.svg"]);
+    assert.deepStrictEqual(patched.states.walking.down, ["../down-custom.svg"]);
+    // Direction without an override stays at the theme default.
+    assert.deepStrictEqual(patched.states.walking.paused, ["paused.svg"]);
+    assert.deepStrictEqual(patched.transitions, {
+      "up-custom.svg": { in: 50 },
+    });
+  });
+
   it("returns the raw object for invalid override payloads", () => {
     const raw = baseTheme();
     assert.strictEqual(applyUserOverridesPatch(raw, null), raw);

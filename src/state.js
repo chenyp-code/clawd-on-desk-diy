@@ -69,6 +69,8 @@ let DND_SLEEP_TRANSITION_SVG = null;
 let DND_SLEEP_TRANSITION_DURATION = 0;
 let COLLAPSE_DURATION = 0;
 let SLEEP_MODE = "full";
+let MAX_SLEEP_DURATION_MS = 0;
+let sleepStartedAt = 0;
 const { SLEEP_SEQUENCE, STATE_PRIORITY, ONESHOT_STATES } = createStatePriorityConstants();
 
 // Session display hints — validated against theme.displayHintMap keys
@@ -321,6 +323,9 @@ function refreshTheme() {
     : 0;
   COLLAPSE_DURATION = theme.timings.collapseDuration || 0;
   SLEEP_MODE = theme.sleepSequence && theme.sleepSequence.mode === "direct" ? "direct" : "full";
+  MAX_SLEEP_DURATION_MS = (theme.walkingRoaming && Number.isFinite(theme.walkingRoaming.maxSleepDurationMs))
+    ? theme.walkingRoaming.maxSleepDurationMs
+    : 60000;
   DISPLAY_HINT_MAP = theme.displayHintMap || {};
   hitboxRuntime = createHitboxRuntime(theme);
   HIT_BOXES = hitboxRuntime.hitBoxes;
@@ -572,6 +577,15 @@ function applyState(state, svgOverride, options = {}) {
     ctx.sendToRenderer("eye-move", 0, 0);
   }
 
+  // Track when the pet actually fell asleep so the wake poll can enforce
+  // maxSleepDurationMs (the v0.9.2 alternation cap that makes walking and
+  // sleeping take turns rather than letting one of them run forever).
+  if (state === "sleeping") {
+    sleepStartedAt = Date.now();
+  } else {
+    sleepStartedAt = 0;
+  }
+
   if ((state === "dozing" || state === "collapsing" || state === "sleeping") && !ctx.doNotDisturb) {
     setTimeout(() => {
       if (currentState === state) startWakePoll();
@@ -632,6 +646,20 @@ function startWakePoll() {
     if (currentState === "dozing" && Date.now() - ctx.mouseStillSince >= DEEP_SLEEP_TIMEOUT) {
       stopWakePoll();
       applyState("collapsing");
+      return;
+    }
+
+    // v0.9.2 long-sleep cap: after maxSleepDurationMs in "sleeping" the pet
+    // voluntarily wakes up so the cycle can return to roaming. This pairs
+    // with roaming-controller's maxRoamingDurationMs to keep walking and
+    // sleeping in alternation.
+    if (
+      currentState === "sleeping"
+      && MAX_SLEEP_DURATION_MS > 0
+      && Date.now() - sleepStartedAt >= MAX_SLEEP_DURATION_MS
+    ) {
+      stopWakePoll();
+      playWakeTransitionOrResolve();
     }
   }, 200);
 }
@@ -1896,12 +1924,15 @@ function resolveDisplayState() {
   // Walking wins over idle and sleeping (the two default states); the
   // comparison uses idle's priority as the threshold since walking itself
   // sits at 0.5 (below idle's 1) in STATE_PRIORITY by design.
+  // CLAWD_FORCE_WALK only relaxes the "no sessions" start guard (see
+  // roaming-controller.canStartNow + tick.js). It must NOT block
+  // preemption — when a session event fires the pet should stop moving
+  // and show the new state, not stay in the walking animation.
   if (
     ctx.roamingController
     && typeof ctx.roamingController.isActive === "function"
     && ctx.roamingController.isActive()
   ) {
-    if (process.env.CLAWD_FORCE_WALK === "1") return "walking";
     const idlePriority = getStatePriority("idle", STATE_PRIORITY);
     if (getStatePriority(fromSessions, STATE_PRIORITY) <= idlePriority) {
       return "walking";

@@ -81,6 +81,11 @@ const DEFAULT_WALKING_ROAMING = Object.freeze({
   minTargetDistPx: 180,
   maxTargetDistPx: 320,
   avoidRadiusPx: 150,
+  // Cap the total time the pet spends in the walking state before it
+  // voluntarily gives way to idle/sleep. Together with maxSleepDurationMs
+  // this gives a long-run alternation: walk → idle → sleep → idle → walk ...
+  maxRoamingDurationMs: 60000,
+  maxSleepDurationMs: 60000,
 });
 
 function validateTheme(cfg) {
@@ -176,7 +181,7 @@ function validateTheme(cfg) {
       if (wr.enabled !== undefined && typeof wr.enabled !== "boolean") {
         errors.push("walkingRoaming.enabled must be boolean");
       }
-      const intFields = ["walkDurationMs", "pauseDurationMs"];
+      const intFields = ["walkDurationMs", "pauseDurationMs", "maxRoamingDurationMs", "maxSleepDurationMs"];
       for (const f of intFields) {
         if (wr[f] !== undefined && (!Number.isInteger(wr[f]) || wr[f] < 0)) {
           errors.push(`walkingRoaming.${f} must be a non-negative integer`);

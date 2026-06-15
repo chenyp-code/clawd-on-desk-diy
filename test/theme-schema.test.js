@@ -93,6 +93,47 @@ describe("theme schema validation", () => {
     assert.ok(errors.some((e) => e.includes("walkingRoaming.walkDurationMs")));
   });
 
+  it("accepts maxRoamingDurationMs and maxSleepDurationMs in walkingRoaming", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      walkingRoaming: {
+        maxRoamingDurationMs: 60000,
+        maxSleepDurationMs: 60000,
+      },
+    }));
+    assert.deepStrictEqual(errors, []);
+  });
+
+  it("rejects negative or non-integer maxRoamingDurationMs", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      walkingRoaming: { maxRoamingDurationMs: -1 },
+    }));
+    assert.ok(errors.some((e) => e.includes("walkingRoaming.maxRoamingDurationMs")));
+
+    const errors2 = schema.validateTheme(validThemeJson({
+      walkingRoaming: { maxRoamingDurationMs: 1.5 },
+    }));
+    assert.ok(errors2.some((e) => e.includes("walkingRoaming.maxRoamingDurationMs")));
+  });
+
+  it("rejects negative or non-integer maxSleepDurationMs", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      walkingRoaming: { maxSleepDurationMs: -10 },
+    }));
+    assert.ok(errors.some((e) => e.includes("walkingRoaming.maxSleepDurationMs")));
+
+    const errors2 = schema.validateTheme(validThemeJson({
+      walkingRoaming: { maxSleepDurationMs: 0.5 },
+    }));
+    assert.ok(errors2.some((e) => e.includes("walkingRoaming.maxSleepDurationMs")));
+  });
+
+  it("accepts maxRoamingDurationMs=0 as disabled cap", () => {
+    const errors = schema.validateTheme(validThemeJson({
+      walkingRoaming: { maxRoamingDurationMs: 0, maxSleepDurationMs: 0 },
+    }));
+    assert.deepStrictEqual(errors, []);
+  });
+
   it("rejects walking state with missing direction", () => {
     const errors = schema.validateTheme(validThemeJson({
       states: {

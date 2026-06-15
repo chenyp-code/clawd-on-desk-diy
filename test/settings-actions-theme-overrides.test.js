@@ -166,6 +166,86 @@ test("settings theme override actions preserve animation and hitbox data when ch
   });
 });
 
+test("settings theme override actions set a walking direction file", () => {
+  const calls = [];
+  const snapshot = { theme: "clawd", themeOverrides: {} };
+
+  const result = themeOverrideCommands.setAnimationOverride(
+    {
+      themeId: "clawd",
+      slotType: "walkingDirection",
+      stateKey: "walking",
+      walkingDirection: "up",
+      file: "calico-walking-up-custom.apng",
+    },
+    {
+      snapshot,
+      activateTheme: (themeId, variantId, overrideMap) => {
+        calls.push({ themeId, variantId, overrideMap });
+      },
+    }
+  );
+
+  assert.strictEqual(result.status, "ok");
+  assert.deepStrictEqual(result.commit.themeOverrides.clawd.states.walking, {
+    up: { file: "calico-walking-up-custom.apng" },
+  });
+  assert.deepStrictEqual(calls, [
+    {
+      themeId: "clawd",
+      variantId: null,
+      overrideMap: result.commit.themeOverrides.clawd,
+    },
+  ]);
+});
+
+test("settings theme override actions clear a walking direction file when set to null", () => {
+  const snapshot = {
+    theme: "clawd",
+    themeOverrides: {
+      clawd: {
+        states: {
+          walking: {
+            up: { file: "calico-walking-up-custom.apng" },
+            down: { file: "calico-walking-down-custom.apng" },
+          },
+        },
+      },
+    },
+  };
+
+  const result = themeOverrideCommands.setAnimationOverride(
+    {
+      themeId: "clawd",
+      slotType: "walkingDirection",
+      stateKey: "walking",
+      walkingDirection: "up",
+      file: null,
+    },
+    { snapshot, activateTheme: () => {} }
+  );
+
+  assert.strictEqual(result.status, "ok");
+  assert.deepStrictEqual(result.commit.themeOverrides.clawd.states.walking, {
+    down: { file: "calico-walking-down-custom.apng" },
+  });
+});
+
+test("settings theme override actions reject an invalid walking direction", () => {
+  const result = themeOverrideCommands.setAnimationOverride(
+    {
+      themeId: "clawd",
+      slotType: "walkingDirection",
+      stateKey: "walking",
+      walkingDirection: "sideways",
+      file: "bogus.apng",
+    },
+    { snapshot: { theme: "clawd", themeOverrides: {} }, activateTheme: () => {} }
+  );
+  assert.strictEqual(result.status, "error");
+  assert.match(result.message, /walkingDirection must be one of/);
+});
+
 test("settings theme override actions import active theme overrides with the committed map", () => {
   const calls = [];
   const payload = {

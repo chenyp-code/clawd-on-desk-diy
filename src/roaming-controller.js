@@ -1,6 +1,6 @@
 "use strict";
 
-const { pickWalkingTarget, computeWalkDuration } = require("./walking-target-picker");
+const { pickWalkingTarget, computeWalkDuration, WALKING_DIRECTIONS } = require("./walking-target-picker");
 const { animateWindowXY } = require("./walking-animator");
 
 let screenModule = null;
@@ -9,13 +9,6 @@ try {
 } catch {
   screenModule = null;
 }
-
-const REQUIRED_WALKING_DIRECTIONS = [
-  "up", "down", "left", "right",
-  "up-left", "up-right",
-  "down-left", "down-right",
-  "paused",
-];
 
 const DIRECTION_FALLBACK = {
   "up-left": "left",
@@ -27,7 +20,7 @@ const DIRECTION_FALLBACK = {
 function themeHasWalkingAssets(theme) {
   const walking = theme && theme.states && theme.states.walking;
   if (!walking || typeof walking !== "object") return false;
-  return REQUIRED_WALKING_DIRECTIONS.every(
+  return WALKING_DIRECTIONS.every(
     (dir) => Array.isArray(walking[dir]) && walking[dir].length > 0
   );
 }
@@ -52,6 +45,7 @@ module.exports = function initRoamingController(ctx) {
   let currentDirection = "paused";
   let cancelAnim = null;
   let pauseTimer = null;
+  let walkStartedAt = 0;
 
   function getEffectiveRoaming() {
     return mergeRoaming(ctx.theme, ctx.defaultWalkingRoaming || {});
@@ -130,13 +124,23 @@ module.exports = function initRoamingController(ctx) {
 
   function walk() {
     if (!active) return;
+    const roaming = getEffectiveRoaming();
+    // Cap the total time the pet spends walking in one go. Walking replaces
+    // idle as the default state, but the pet shouldn't walk forever — once
+    // maxRoamingDurationMs elapses we voluntarily give way to whatever the
+    // state resolver picks (idle by default, which then triggers the normal
+    // mouse-idle → sleep sequence).
+    const maxRoaming = Number.isFinite(roaming.maxRoamingDurationMs) ? roaming.maxRoamingDurationMs : 60000;
+    if (maxRoaming > 0 && Date.now() - walkStartedAt >= maxRoaming) {
+      cancel("max-duration");
+      return;
+    }
     const { origin, target } = pickNextStep();
     if (!target) {
       schedulePause();
       return;
     }
     applyWalking(target.direction);
-    const roaming = getEffectiveRoaming();
     const duration = computeWalkDuration(origin, target, roaming);
     cancelAnim = animateWindowXY(ctx, { x: target.x, y: target.y }, duration, () => {
       cancelAnim = null;
@@ -157,48 +161,52 @@ module.exports = function initRoamingController(ctx) {
     }, pauseMs);
   }
 
+  function cancel(reason) {
+    if (!active) return;
+    active = false;
+    walkStartedAt = 0;
+    if (cancelAnim) {
+      cancelAnim();
+      cancelAnim = null;
+    }
+    if (pauseTimer) {
+      clearTimeout(pauseTimer);
+      pauseTimer = null;
+    }
+    const next = (typeof ctx.resolveDisplayState === "function") ? ctx.resolveDisplayState() : "idle";
+    if (typeof ctx.applyState === "function") ctx.applyState(next);
+    if (typeof ctx.sendToRenderer === "function") {
+      ctx.sendToRenderer("walking-direction", null);
+    }
+  }
+
   return {
     start() {
       if (active) return;
       if (!canStartNow()) return;
       active = true;
+      walkStartedAt = Date.now();
       walk();
     },
-    cancel() {
-      if (!active) return;
-      active = false;
-      if (cancelAnim) {
-        cancelAnim();
-        cancelAnim = null;
-      }
-      if (pauseTimer) {
-        clearTimeout(pauseTimer);
-        pauseTimer = null;
-      }
-      const next = (typeof ctx.resolveDisplayState === "function") ? ctx.resolveDisplayState() : "idle";
-      if (typeof ctx.applyState === "function") ctx.applyState(next);
-      if (typeof ctx.sendToRenderer === "function") {
-        ctx.sendToRenderer("walking-direction", null);
-      }
-    },
+    cancel,
     isActive() { return active; },
     getDirection() { return currentDirection; },
     refreshTheme() {
       if (active) {
         const roaming = getEffectiveRoaming();
         if (roaming.enabled === false) {
-          this.cancel("theme-disabled");
+          cancel("theme-disabled");
         }
       }
     },
     refreshSettings() {
       if (active && (!ctx.getIdleRoamingEnabled || !ctx.getIdleRoamingEnabled())) {
-        this.cancel("settings-disabled");
+        cancel("settings-disabled");
       }
     },
     handleDisplayChange() {
       if (!active) return;
-      this.cancel("display-change");
+      cancel("display-change");
     },
     cleanup() {
       this.cancel("cleanup");

@@ -23,6 +23,7 @@
     "prebuild:all": "node scripts/verify-sidecar-binaries.js",
     "test": "node test/run-tests.js",
     "create-theme": "node scripts/create-theme.js",
+    "mirror-apng": "node scripts/mirror-apng.js",
     "export-agent-icons": "node scripts/export-agent-icons.js",
     "install:claude-hooks": "node hooks/install.js",
     "uninstall:claude-hooks": "node hooks/uninstall.js",
@@ -169,7 +170,8 @@
   },
   "devDependencies": {
     "electron": "^41.0.2",
-    "electron-builder": "^26.8.1"
+    "electron-builder": "^26.8.1",
+    "upng-js": "^2.1.0"
   },
   "dependencies": {
     "electron-updater": "^6.8.3",

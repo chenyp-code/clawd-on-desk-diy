@@ -435,6 +435,13 @@
       themeMap.states[pending.stateKey] = themeMap.states[pending.stateKey] || {};
       return themeMap.states[pending.stateKey];
     }
+    if (pending.slotType === "walkingDirection") {
+      if (!pending.walkingDirection) return null;
+      themeMap.states = themeMap.states || {};
+      themeMap.states.walking = themeMap.states.walking || {};
+      themeMap.states.walking[pending.walkingDirection] = themeMap.states.walking[pending.walkingDirection] || {};
+      return themeMap.states.walking[pending.walkingDirection];
+    }
     if (pending.slotType === "tier") {
       if (!pending.tierGroup || !pending.originalFile) return null;
       themeMap.tiers = themeMap.tiers || {};
@@ -462,6 +469,10 @@
     if (pending.slotType === "state") {
       return pending.stateKey && themeMap.states ? themeMap.states[pending.stateKey] || null : null;
     }
+    if (pending.slotType === "walkingDirection") {
+      const walking = themeMap.states && themeMap.states.walking;
+      return walking && pending.walkingDirection ? walking[pending.walkingDirection] || null : null;
+    }
     if (pending.slotType === "tier") {
       const group = pending.tierGroup && themeMap.tiers && themeMap.tiers[pending.tierGroup];
       return group && pending.originalFile ? group[pending.originalFile] || null : null;
@@ -481,6 +492,19 @@
       if (themeMap.states && pending.stateKey && themeMap.states[pending.stateKey]
         && !Object.keys(themeMap.states[pending.stateKey]).length) {
         delete themeMap.states[pending.stateKey];
+      }
+      pruneEmptyObject(themeMap, "states");
+      return;
+    }
+    if (pending.slotType === "walkingDirection") {
+      if (themeMap.states && themeMap.states.walking && pending.walkingDirection
+        && themeMap.states.walking[pending.walkingDirection]
+        && !Object.keys(themeMap.states.walking[pending.walkingDirection]).length) {
+        delete themeMap.states.walking[pending.walkingDirection];
+      }
+      if (themeMap.states && themeMap.states.walking
+        && !Object.keys(themeMap.states.walking).length) {
+        delete themeMap.states.walking;
       }
       pruneEmptyObject(themeMap, "states");
       return;
@@ -681,6 +705,9 @@
       base.originalFile = card.originalFile;
     } else if (card.slotType === "reaction") {
       base.reactionKey = card.reactionKey;
+    } else if (card.slotType === "walkingDirection") {
+      base.stateKey = card.stateKey;
+      base.walkingDirection = card.walkingDirection;
     } else {
       base.stateKey = card.stateKey;
     }
@@ -823,6 +850,7 @@
       case "mini-alert": return "Mini alert";
       case "mini-happy": return "Mini happy";
       case "mini-sleep": return "Mini sleep";
+      case "walking": return `Walking: ${card.walkingDirection || ""}`;
       case "dragReaction": return t("animReactionDrag");
       case "clickLeftReaction": return t("animReactionClickLeft");
       case "clickRightReaction": return t("animReactionClickRight");
@@ -841,6 +869,7 @@
       case "sleep": return t("animOverridesSectionSleep");
       case "mini": return t("animOverridesSectionMini");
       case "reactions": return t("animOverridesSectionReactions");
+      case "walking": return t("animOverridesSectionWalking");
       default: return section.id;
     }
   }
@@ -1238,6 +1267,7 @@
       stateKey: previewStateForCard(card),
       file: card.currentFile,
       durationMs: getAnimationPreviewDuration(null, card),
+      walkingDirection: card.slotType === "walkingDirection" ? card.walkingDirection : undefined,
     });
   }
 
@@ -1278,6 +1308,12 @@
       return !!(hasMaterialEntryOverride(entry)
         || (hasTransitionFlag ? card.hasTransitionOverride : hasTransitionOverride(entry))
         || (hasDurationFlag ? card.hasDurationOverride : (entry && Object.prototype.hasOwnProperty.call(entry, "durationMs"))));
+    }
+    if (card.slotType === "walkingDirection") {
+      const walking = map.states && map.states.walking;
+      const dirEntry = walking && walking[card.walkingDirection];
+      return !!(hasMaterialEntryOverride(dirEntry)
+        || (hasTransitionFlag ? card.hasTransitionOverride : hasTransitionOverride(dirEntry)));
     }
     const entry = map.states && map.states[card.stateKey];
     if (entry && hasMaterialEntryOverride(entry)) return true;
@@ -1470,7 +1506,10 @@
       ...(card.supportsAutoReturn ? { autoReturnMs: null } : {}),
       ...(card.supportsDuration ? { durationMs: null } : {}),
     };
-    const resetHitboxFile = card.slotType !== "reaction" && card.currentFile && card.wideHitboxOverridden
+    const resetHitboxFile = card.slotType !== "reaction"
+      && card.slotType !== "walkingDirection"
+      && card.currentFile
+      && card.wideHitboxOverridden
       ? card.currentFile
       : null;
     const resetHitboxThemeDefault = !!card.wideHitboxThemeDefault;
@@ -1676,7 +1715,7 @@
     }
     drawer.appendChild(sliders);
 
-    if (card.slotType !== "reaction") {
+    if (card.slotType !== "reaction" && card.slotType !== "walkingDirection") {
       drawer.appendChild(buildAnimWideHitboxToggle(card));
     }
 
