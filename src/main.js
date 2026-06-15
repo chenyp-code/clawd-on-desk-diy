@@ -794,6 +794,34 @@ function syncRendererStateAfterLoad({ includeStartupRecovery = true } = {}) {
     return;
   }
 
+  // v0.9.2 walking-roaming: tick.js may have started the roaming controller
+  // before the renderer's webContents finished loading, in which case the
+  // initial "state-change" → "walking" IPC event was dropped (no listener
+  // yet). `did-finish-load` then fires, and without this branch we'd force
+  // applyState("idle", ...) — overwriting main's walking state — and the
+  // window would visibly walk while the renderer kept showing the idle SVG.
+  // Re-send the current walking file (by direction) so the renderer catches
+  // up with the state main is already in.
+  if (
+    _roamingController
+    && typeof _roamingController.isActive === "function"
+    && _roamingController.isActive()
+  ) {
+    const theme = getActiveTheme();
+    const direction = _roamingController.getDirection();
+    const walking = theme && theme.states && theme.states.walking;
+    const entry = walking && walking[direction];
+    const walkingFile = Array.isArray(entry) && entry.length > 0
+      ? entry[0]
+      : (Array.isArray(walking && walking.right) && walking.right[0]) || null;
+    if (walkingFile) {
+      applyState("walking", walkingFile);
+    } else {
+      applyState("idle", getSvgOverride("idle"));
+    }
+    return;
+  }
+
   applyState("idle", getSvgOverride("idle"));
 
   setTimeout(() => {
