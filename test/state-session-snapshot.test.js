@@ -558,4 +558,38 @@ describe("state-session-snapshot builder", () => {
     assert.strictEqual(entry.lastTurnCallCount, 0);
     assert.strictEqual(entry.sessionCallCount, 0);
   });
+
+  // ── T8: signature must include the new fields so renderers receive updates ──
+  it("snapshot signature changes when per-turn or session-cumulative token/call fields change", () => {
+    const baseSessions = new Map([
+      ["s1", session("working", {
+        recentEvents: [{ event: "PreToolUse", state: "working", at: 900 }],
+      })],
+    ]);
+    const withLastTurnUsage = new Map([
+      ["s1", session("working", {
+        recentEvents: [{ event: "PreToolUse", state: "working", at: 900 }],
+        lastTurnUsage: { input: 10, output: 20, cacheRead: 30, cacheCreation: 40, total: 100 },
+      })],
+    ]);
+    const withSessionCallCount = new Map([
+      ["s1", session("working", {
+        recentEvents: [{ event: "PreToolUse", state: "working", at: 900 }],
+        sessionCallCount: 5,
+      })],
+    ]);
+
+    const baseSig = sessionSnapshotSignature(buildSessionSnapshot(baseSessions, {
+      statePriority: STATE_PRIORITY, getAgentIconUrl: () => null,
+    }));
+    const turnSig = sessionSnapshotSignature(buildSessionSnapshot(withLastTurnUsage, {
+      statePriority: STATE_PRIORITY, getAgentIconUrl: () => null,
+    }));
+    const callSig = sessionSnapshotSignature(buildSessionSnapshot(withSessionCallCount, {
+      statePriority: STATE_PRIORITY, getAgentIconUrl: () => null,
+    }));
+
+    assert.notStrictEqual(baseSig, turnSig, "lastTurnUsage should invalidate the signature");
+    assert.notStrictEqual(baseSig, callSig, "sessionCallCount should invalidate the signature");
+  });
 });
