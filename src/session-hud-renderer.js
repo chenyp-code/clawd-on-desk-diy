@@ -164,6 +164,43 @@ function usageChipInfo(session) {
   };
 }
 
+function usageBreakdown(usage) {
+  return t("usageStatLabel")
+    .replace("{input}", formatTokenCount(usage.input))
+    .replace("{output}", formatTokenCount(usage.output))
+    .replace("{cache}", formatTokenCount((usage.cacheRead || 0) + (usage.cacheCreation || 0)));
+}
+
+function turnUsageChipInfo(session) {
+  if (snapshot.hudShowContextUsage === false) return null;
+  const usage = session && session.lastTurnUsage;
+  if (!usage || !Number.isFinite(Number(usage.total))) return null;
+  const total = formatTokenCount(usage.total);
+  const count = Number.isFinite(Number(session.lastTurnCallCount))
+    ? Number(session.lastTurnCallCount)
+    : 0;
+  return {
+    label: t("hudThisTurnChip").replace("{total}", total).replace("{n}", String(count)),
+    cls: "chip-turn",
+    title: usageBreakdown(usage),
+  };
+}
+
+function sessionUsageChipInfo(session) {
+  if (snapshot.hudShowContextUsage === false) return null;
+  const usage = session && session.sessionTokenUsage;
+  if (!usage || !Number.isFinite(Number(usage.total))) return null;
+  const total = formatTokenCount(usage.total);
+  const count = Number.isFinite(Number(session.sessionCallCount))
+    ? Number(session.sessionCallCount)
+    : 0;
+  return {
+    label: t("hudSessionChip").replace("{total}", total).replace("{n}", String(count)),
+    cls: "chip-session",
+    title: usageBreakdown(usage),
+  };
+}
+
 const BELL_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 22c1.1 0 2-.9 2-2h-4c0 1.1.9 2 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4c0-.83-.67-1.5-1.5-1.5s-1.5.67-1.5 1.5v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>`;
 const FOCUS_UNAVAILABLE_SVG = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4l16 16"/><path d="M9.5 5h5"/><path d="M7 9h10"/><path d="M5 14h9"/><path d="M12 19h5"/></svg>`;
 const PIN_SVG_FILLED = `<svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 4l6 6-4 1-3 3 1 5-2 1-4-4-5 5-1-1 5-5-4-4 1-2 5 1 3-3 1-4z"/></svg>`;
@@ -280,6 +317,26 @@ function createRowForSession(session, now) {
     chip.className = `usage-chip ${usageInfo.cls}`;
     chip.textContent = usageInfo.label;
     chip.title = usageInfo.title;
+    right.appendChild(chip);
+    hasRightContent = true;
+  }
+
+  const turnUsageInfo = turnUsageChipInfo(session);
+  if (turnUsageInfo && turnUsageInfo.label) {
+    const chip = document.createElement("span");
+    chip.className = `usage-chip ${turnUsageInfo.cls}`;
+    chip.textContent = turnUsageInfo.label;
+    chip.title = turnUsageInfo.title;
+    right.appendChild(chip);
+    hasRightContent = true;
+  }
+
+  const sessionUsageInfo = sessionUsageChipInfo(session);
+  if (sessionUsageInfo && sessionUsageInfo.label) {
+    const chip = document.createElement("span");
+    chip.className = `usage-chip ${sessionUsageInfo.cls}`;
+    chip.textContent = sessionUsageInfo.label;
+    chip.title = sessionUsageInfo.title;
     right.appendChild(chip);
     hasRightContent = true;
   }
