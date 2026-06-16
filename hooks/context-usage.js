@@ -86,10 +86,67 @@ function extractClaudeContextUsageFromEntries(entries, sessionId) {
   return null;
 }
 
+function computeAssistantUsage(entry) {
+  const message = entry && entry.message && typeof entry.message === "object" ? entry.message : null;
+  const usage = message && message.usage && typeof message.usage === "object" ? message.usage : null;
+  if (!usage) return null;
+  const input = normalizeUsageNumber(usage.input_tokens);
+  const output = normalizeUsageNumber(usage.output_tokens);
+  const cacheRead = normalizeUsageNumber(usage.cache_read_input_tokens);
+  const cacheCreation = normalizeUsageNumber(usage.cache_creation_input_tokens);
+  const total = input + output + cacheRead + cacheCreation;
+  if (total <= 0) return null;
+  return { input, output, cacheRead, cacheCreation, total };
+}
+
+function userEntryIsToolResultOnly(entry) {
+  const content = entry && entry.message && entry.message.content;
+  if (!Array.isArray(content) || content.length === 0) return false;
+  return content.every((part) => part && typeof part === "object" && part.type === "tool_result");
+}
+
+function extractClaudeLastTurnUsageFromEntries(entries, sessionId) {
+  if (!Array.isArray(entries)) return null;
+  let turnStart = -1;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (!e || typeof e !== "object") continue;
+    if (e.type !== "user") continue;
+    if (userEntryIsToolResultOnly(e)) continue;
+    if (!entryMatchesSession(e, sessionId)) continue;
+    turnStart = i;
+    break;
+  }
+  if (turnStart < 0) return null;
+
+  let aggregate = null;
+  for (let i = turnStart + 1; i < entries.length; i++) {
+    const e = entries[i];
+    if (!e || typeof e !== "object") continue;
+    if (e.type !== "assistant") continue;
+    if (e.isApiErrorMessage === true) continue;
+    if (!entryMatchesSession(e, sessionId)) continue;
+    if (entryLooksSubagent(e)) continue;
+    const u = computeAssistantUsage(e);
+    if (!u) continue;
+    if (!aggregate) aggregate = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
+    aggregate.input += u.input;
+    aggregate.output += u.output;
+    aggregate.cacheRead += u.cacheRead;
+    aggregate.cacheCreation += u.cacheCreation;
+    aggregate.total += u.total;
+  }
+  if (!aggregate) return null;
+  aggregate.source = "claude";
+  return aggregate;
+}
+
 module.exports = {
   CLAUDE_1M_CONTEXT_LIMIT,
   DEFAULT_CLAUDE_CONTEXT_LIMIT,
+  computeAssistantUsage,
   computeClaudeUsageFromEntry,
   extractClaudeContextUsageFromEntries,
+  extractClaudeLastTurnUsageFromEntries,
   resolveClaudeContextLimit,
 };

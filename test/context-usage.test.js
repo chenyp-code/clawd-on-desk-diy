@@ -5,6 +5,7 @@ const assert = require("node:assert");
 
 const {
   extractClaudeContextUsageFromEntries,
+  extractClaudeLastTurnUsageFromEntries,
   resolveClaudeContextLimit,
 } = require("../hooks/context-usage");
 
@@ -240,5 +241,50 @@ describe("Claude context usage parser", () => {
     ]);
 
     assert.deepStrictEqual(usage, { used: 123, source: "claude" });
+  });
+});
+
+describe("Claude per-turn usage parser", () => {
+  it("returns null when no user entry precedes any assistant entry", () => {
+    const usage = extractClaudeLastTurnUsageFromEntries([
+      { type: "assistant", sessionId: "s1", message: { usage: { input_tokens: 100, output_tokens: 50 } } },
+    ], "s1");
+    assert.strictEqual(usage, null);
+  });
+
+  it("sums assistant usage entries from the latest user entry forward", () => {
+    const usage = extractClaudeLastTurnUsageFromEntries([
+      { type: "user", sessionId: "s1", message: { content: "hi" } },
+      { type: "assistant", sessionId: "s1", message: { usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 10, cache_creation_input_tokens: 5 } } },
+      { type: "user", sessionId: "s1", message: { content: [{ type: "tool_result" }] } },
+      { type: "assistant", sessionId: "s1", message: { usage: { input_tokens: 200, output_tokens: 80, cache_read_input_tokens: 20, cache_creation_input_tokens: 0 } } },
+    ], "s1");
+    assert.deepStrictEqual(usage, {
+      input: 300, output: 130, cacheRead: 30, cacheCreation: 5, total: 465, source: "claude",
+    });
+  });
+
+  it("skips sidechain / sub-agent / api-error entries", () => {
+    const usage = extractClaudeLastTurnUsageFromEntries([
+      { type: "user", sessionId: "s1" },
+      { type: "assistant", sessionId: "s1", isSidechain: true, message: { usage: { input_tokens: 9999 } } },
+      { type: "assistant", sessionId: "s1", isApiErrorMessage: true, message: { usage: { input_tokens: 9999 } } },
+      { type: "assistant", sessionId: "s1", message: { usage: { input_tokens: 100, output_tokens: 50 } } },
+    ], "s1");
+    assert.deepStrictEqual(usage, { input: 100, output: 50, cacheRead: 0, cacheCreation: 0, total: 150, source: "claude" });
+  });
+
+  it("excludes cross-session entries", () => {
+    const usage = extractClaudeLastTurnUsageFromEntries([
+      { type: "user", sessionId: "s1" },
+      { type: "assistant", sessionId: "other", message: { usage: { input_tokens: 9999 } } },
+      { type: "assistant", sessionId: "s1", message: { usage: { input_tokens: 100, output_tokens: 50 } } },
+    ], "s1");
+    assert.deepStrictEqual(usage, { input: 100, output: 50, cacheRead: 0, cacheCreation: 0, total: 150, source: "claude" });
+  });
+
+  it("returns null for empty / non-array input", () => {
+    assert.strictEqual(extractClaudeLastTurnUsageFromEntries([], "s1"), null);
+    assert.strictEqual(extractClaudeLastTurnUsageFromEntries(null, "s1"), null);
   });
 });
