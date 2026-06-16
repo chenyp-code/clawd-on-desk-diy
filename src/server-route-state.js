@@ -62,6 +62,20 @@ function normalizeContextUsage(value) {
   return out;
 }
 
+function normalizeAssistantUsageShape(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const input = Number(value.input);
+  const output = Number(value.output);
+  const cacheRead = Number(value.cacheRead);
+  const cacheCreation = Number(value.cacheCreation);
+  if (![input, output, cacheRead, cacheCreation].every((n) => Number.isFinite(n) && n >= 0)) return null;
+  const out = { input, output, cacheRead, cacheCreation };
+  // Optional: include `total` if the hook computed one (consumers may want it).
+  const total = Number(value.total);
+  if (Number.isFinite(total) && total >= 0) out.total = total;
+  return out;
+}
+
 function sendStateHealthResponse(res, options) {
   const body = JSON.stringify({ ok: true, app: CLAWD_SERVER_ID, port: options.getHookServerPort() });
   res.writeHead(200, {
@@ -144,6 +158,13 @@ function handleStatePost(req, res, options) {
       const rawTitle = typeof data.session_title === "string" ? data.session_title.trim() : "";
       const sessionTitle = rawTitle || null;
       const contextUsage = normalizeContextUsage(data.context_usage);
+      const rawLastTurnCallCount = Number(data.last_turn_call_count);
+      const lastTurnCallCount = Number.isFinite(rawLastTurnCallCount) && rawLastTurnCallCount >= 0
+        ? Math.round(rawLastTurnCallCount)
+        : null;
+      const lastTurnUsage = normalizeAssistantUsageShape(data.last_turn_usage);
+      const lastAssistantEntryId = (typeof data.last_assistant_entry_id === "string" && data.last_assistant_entry_id) ? data.last_assistant_entry_id : null;
+      const lastAssistantUsage = normalizeAssistantUsageShape(data.last_assistant_usage);
       const assistantLastOutput = normalizeAssistantLastOutput(data.assistant_last_output);
       const assistantLastOutputTruncated = data.assistant_last_output_truncated === true;
       const permissionSuspect = data.permission_suspect === true;
@@ -257,6 +278,10 @@ function handleStatePost(req, res, options) {
             displayHint: display_svg,
             sessionTitle,
             contextUsage,
+            lastTurnUsage,
+            lastTurnCallCount,
+            lastAssistantEntryId,
+            lastAssistantUsage,
             assistantLastOutput,
             assistantLastOutputTruncated,
             permissionSuspect,

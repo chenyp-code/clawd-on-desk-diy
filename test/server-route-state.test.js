@@ -148,6 +148,10 @@ describe("server-route-state POST", () => {
         displayHint: "display.svg",
         sessionTitle: "Work title",
         contextUsage: null,
+        lastTurnUsage: null,
+        lastTurnCallCount: null,
+        lastAssistantEntryId: null,
+        lastAssistantUsage: null,
         assistantLastOutput: null,
         assistantLastOutputTruncated: false,
         permissionSuspect: true,
@@ -201,6 +205,106 @@ describe("server-route-state POST", () => {
 
     assert.strictEqual(res.statusCode, 200);
     assert.strictEqual(res.calls.updateSession[0][3].contextUsage, null);
+  });
+
+  it("passes valid last_turn_usage / last_turn_call_count / last_assistant_entry_id / last_assistant_usage to updateSession", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      last_turn_usage: { input: 100, output: 50, cacheRead: 10, cacheCreation: 0, total: 160, source: "claude" },
+      last_turn_call_count: 3,
+      last_assistant_entry_id: "entry-xyz",
+      last_assistant_usage: { input: 200, output: 75, cacheRead: 20, cacheCreation: 5, total: 300, source: "claude" },
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    const opts = res.calls.updateSession[0][3];
+    assert.deepStrictEqual(opts.lastTurnUsage, {
+      input: 100,
+      output: 50,
+      cacheRead: 10,
+      cacheCreation: 0,
+      total: 160,
+    });
+    assert.strictEqual(opts.lastTurnCallCount, 3);
+    assert.strictEqual(opts.lastAssistantEntryId, "entry-xyz");
+    assert.deepStrictEqual(opts.lastAssistantUsage, {
+      input: 200,
+      output: 75,
+      cacheRead: 20,
+      cacheCreation: 5,
+      total: 300,
+    });
+  });
+
+  it("drops invalid last_turn_usage without rejecting state", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      last_turn_usage: { input: -1 },
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.updateSession[0][3].lastTurnUsage, null);
+  });
+
+  it("drops invalid last_assistant_usage without rejecting state", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      last_assistant_usage: null,
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    assert.strictEqual(res.calls.updateSession[0][3].lastAssistantUsage, null);
+  });
+
+  it("normalizes last_turn_call_count to non-negative integer or null", async () => {
+    const cases = [
+      { input: 3.7, expected: 4 },
+      { input: -5, expected: null },
+      { input: "garbage", expected: null },
+      { input: 0, expected: 0 },
+    ];
+    for (const { input, expected } of cases) {
+      const res = await callStatePost(JSON.stringify({
+        state: "working",
+        session_id: "sid",
+        event: "PreToolUse",
+        last_turn_call_count: input,
+      }));
+      assert.strictEqual(res.statusCode, 200, `case input=${JSON.stringify(input)}`);
+      assert.strictEqual(
+        res.calls.updateSession[0][3].lastTurnCallCount,
+        expected,
+        `case input=${JSON.stringify(input)}`,
+      );
+    }
+  });
+
+  it("normalizes last_assistant_entry_id to non-empty string or null", async () => {
+    const cases = [
+      { input: "", expected: null },
+      { input: "abc", expected: "abc" },
+      { input: 123, expected: null },
+    ];
+    for (const { input, expected } of cases) {
+      const res = await callStatePost(JSON.stringify({
+        state: "working",
+        session_id: "sid",
+        event: "PreToolUse",
+        last_assistant_entry_id: input,
+      }));
+      assert.strictEqual(res.statusCode, 200, `case input=${JSON.stringify(input)}`);
+      assert.strictEqual(
+        res.calls.updateSession[0][3].lastAssistantEntryId,
+        expected,
+        `case input=${JSON.stringify(input)}`,
+      );
+    }
   });
 
   it("marks missing agent_id as a defaulted Claude Code attribution", async () => {
