@@ -134,6 +134,134 @@ describe("completion bubble estimateHeight", () => {
   });
 });
 
+describe("completion bubble estimateHeight — token stats", () => {
+  it("adds height for stats block when lastTurnUsage is present", () => {
+    const baseline = estimateHeight({});
+    const withTurn = estimateHeight({
+      lastTurnUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+      lastTurnCallCount: 3,
+    });
+    assert.strictEqual(withTurn, baseline + 36);
+  });
+
+  it("adds height for stats block when sessionTokenUsage is present (no lastTurnUsage)", () => {
+    const baseline = estimateHeight({});
+    const withSession = estimateHeight({
+      sessionTokenUsage: { input: 1000, output: 200, cacheRead: 0, cacheCreation: 0 },
+      sessionCallCount: 12,
+    });
+    assert.strictEqual(withSession, baseline + 36);
+  });
+
+  it("adds height when both lastTurnUsage and sessionTokenUsage are present", () => {
+    const baseline = estimateHeight({});
+    const withBoth = estimateHeight({
+      lastTurnUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+      lastTurnCallCount: 3,
+      sessionTokenUsage: { input: 1000, output: 200, cacheRead: 0, cacheCreation: 0 },
+      sessionCallCount: 12,
+    });
+    assert.strictEqual(withBoth, baseline + 36);
+  });
+
+  it("returns baseline when neither stat is present", () => {
+    const baseline = estimateHeight({});
+    assert.strictEqual(estimateHeight({ durationMs: 1500 }), baseline);
+    assert.strictEqual(estimateHeight({ title: "hello", message: "world" }), baseline);
+  });
+});
+
+describe("completion-bubble — token stats payload forwarding", () => {
+  // We need a richer electron stub for showCompletionBubble — the helper
+  // creates a BrowserWindow and forwards the payload via webContents.send.
+  // We intercept both the send call (to verify the IPC payload) and the
+  // BrowserWindow constructor (so we don't actually open a window).
+  function installElectronStub() {
+    const sentPayloads = [];
+    const winInstances = [];
+    class FakeBrowserWindow {
+      constructor() {
+        this._sent = sentPayloads;
+        this.webContents = {
+          send: (channel, payload) => { sentPayloads.push({ channel, payload }); },
+          isLoading: () => false,
+          once: () => {},
+        };
+        winInstances.push(this);
+      }
+      isDestroyed() { return false; }
+      getBounds() { return { x: 0, y: 0, width: 320, height: 200 }; }
+      showInactive() {}
+      hide() {}
+      setAlwaysOnTop() {}
+      on() {}
+      loadFile() {}
+      setBounds() {}
+      destroy() {}
+      isVisible() { return false; }
+    }
+    require.cache[electronPath] = {
+      id: electronPath,
+      filename: electronPath,
+      loaded: true,
+      exports: {
+        BrowserWindow: FakeBrowserWindow,
+        ipcMain: { on: () => {}, removeListener: () => {} },
+        contextBridge: { exposeInMainWorld: () => {} },
+        ipcRenderer: { on: () => {}, send: () => {} },
+      },
+    };
+    // Drop the cached module so it re-requires with our stub.
+    delete require.cache[completionBubblePath];
+    return { sentPayloads, winInstances };
+  }
+
+  function makeCtx() {
+    return {
+      win: null,
+      bubbleFollowPet: false,
+      petHidden: false,
+      miniMode: false,
+      getBubblePolicy: () => ({ enabled: true, autoCloseMs: 2000, bypassDnd: true }),
+      getPendingPermissions: () => [],
+      getUpdateBubble: () => null,
+      getPetWindowBounds: () => ({ x: 0, y: 0, width: 100, height: 100 }),
+      getNearestWorkArea: () => ({ x: 0, y: 0, width: 1920, height: 1080 }),
+      guardAlwaysOnTop: () => {},
+      reapplyMacVisibility: () => {},
+      getHudReservedOffset: () => 0,
+    };
+  }
+
+  it("forwards lastTurnUsage / lastTurnCallCount / sessionTokenUsage / sessionCallCount through show", () => {
+    const { sentPayloads } = installElectronStub();
+    const cb = require("../src/completion-bubble");
+    const api = cb(makeCtx());
+
+    const lastTurnUsage = { input: 1200, output: 567, cacheRead: 0, cacheCreation: 0 };
+    const sessionTokenUsage = { input: 5000, output: 1200, cacheRead: 0, cacheCreation: 0 };
+    const payload = {
+      title: "Refactor the auth flow",
+      prompt: "Refactor the auth flow",
+      durationMs: 1500,
+      lastTurnUsage,
+      lastTurnCallCount: 3,
+      sessionTokenUsage,
+      sessionCallCount: 12,
+    };
+    api.showCompletionBubble(payload);
+    api.cleanup();
+
+    const showCalls = sentPayloads.filter((s) => s.channel === "completion-bubble-show");
+    assert.strictEqual(showCalls.length, 1, "expected exactly one show IPC");
+    const forwarded = showCalls[0].payload;
+    assert.deepStrictEqual(forwarded.lastTurnUsage, lastTurnUsage);
+    assert.strictEqual(forwarded.lastTurnCallCount, 3);
+    assert.deepStrictEqual(forwarded.sessionTokenUsage, sessionTokenUsage);
+    assert.strictEqual(forwarded.sessionCallCount, 12);
+  });
+});
+
 describe("completion bubble autoClose remaining", () => {
   it("returns the full window when no start timestamp is given", () => {
     assert.strictEqual(computeAutoCloseRemainingMs(0, 2000, Date.now()), 2000);
