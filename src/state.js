@@ -36,6 +36,61 @@ const {
 } = require("./state-session-snapshot");
 const { getAgentIconUrl } = require("./state-agent-icons");
 
+// ── Session-cumulative token usage accumulator ──
+// Pure helpers exported via module.exports.__test for unit testing. The merge
+// step is idempotent on assistant entry id — re-merging the same entry is a
+// no-op so callers can replay events safely. `total` is recomputed from the
+// sum (not added incrementally) to avoid float drift across long sessions.
+
+function emptySessionTokenUsage() {
+  return { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
+}
+
+function resetSessionTokenUsage() {
+  return {
+    sessionTokenUsage: emptySessionTokenUsage(),
+    sessionCallCount: 0,
+    seenAssistantEntryIds: [],
+  };
+}
+
+function normalizeAssistantUsageForMerge(usage) {
+  if (!usage || typeof usage !== "object") return null;
+  const readNum = (v) => {
+    if (v === undefined || v === null) return 0;
+    const n = Number(v);
+    return Number.isFinite(n) && n >= 0 ? n : null;
+  };
+  const input = readNum(usage.input);
+  const output = readNum(usage.output);
+  const cacheRead = readNum(usage.cacheRead);
+  const cacheCreation = readNum(usage.cacheCreation);
+  if ([input, output, cacheRead, cacheCreation].some((n) => n === null)) return null;
+  return { input, output, cacheRead, cacheCreation };
+}
+
+function mergeSessionTokenUsage(state, entryId, usage) {
+  const base = state && typeof state === "object" ? state : resetSessionTokenUsage();
+  if (typeof entryId !== "string" || !entryId) return base;
+  const seen = Array.isArray(base.seenAssistantEntryIds) ? base.seenAssistantEntryIds : [];
+  if (seen.includes(entryId)) return base;
+  const u = normalizeAssistantUsageForMerge(usage);
+  if (!u) return base;
+  const prev = base.sessionTokenUsage && typeof base.sessionTokenUsage === "object"
+    ? base.sessionTokenUsage : emptySessionTokenUsage();
+  return {
+    sessionTokenUsage: {
+      input: prev.input + u.input,
+      output: prev.output + u.output,
+      cacheRead: prev.cacheRead + u.cacheRead,
+      cacheCreation: prev.cacheCreation + u.cacheCreation,
+      total: prev.input + prev.output + prev.cacheRead + prev.cacheCreation + u.input + u.output + u.cacheRead + u.cacheCreation,
+    },
+    sessionCallCount: (base.sessionCallCount || 0) + 1,
+    seenAssistantEntryIds: seen.concat([entryId]),
+  };
+}
+
 module.exports = function initState(ctx) {
 
 const _getCursor = ctx.getCursorScreenPoint || (screen ? () => screen.getCursorScreenPoint() : null);
@@ -2103,4 +2158,11 @@ return {
   cleanup,
 };
 
+};
+
+module.exports.__test = {
+  emptySessionTokenUsage,
+  resetSessionTokenUsage,
+  mergeSessionTokenUsage,
+  normalizeAssistantUsageForMerge,
 };
