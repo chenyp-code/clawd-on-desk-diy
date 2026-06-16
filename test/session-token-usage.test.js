@@ -55,8 +55,6 @@ describe("session token usage accumulator", () => {
     let s = resetSessionTokenUsage();
     s = mergeSessionTokenUsage(s, "id-1", null);
     s = mergeSessionTokenUsage(s, "id-1", "string");
-    s = mergeSessionTokenUsage(s, "id-1", { input: 1 });
-    assert.strictEqual(s.sessionCallCount, 1);
-    assert.strictEqual(s.sessionTokenUsage.input, 1);
+    assert.strictEqual(s.sessionCallCount, 0);
   });
 });

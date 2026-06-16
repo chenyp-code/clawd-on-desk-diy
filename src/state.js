@@ -56,16 +56,11 @@ function resetSessionTokenUsage() {
 
 function normalizeAssistantUsageForMerge(usage) {
   if (!usage || typeof usage !== "object") return null;
-  const readNum = (v) => {
-    if (v === undefined || v === null) return 0;
-    const n = Number(v);
-    return Number.isFinite(n) && n >= 0 ? n : null;
-  };
-  const input = readNum(usage.input);
-  const output = readNum(usage.output);
-  const cacheRead = readNum(usage.cacheRead);
-  const cacheCreation = readNum(usage.cacheCreation);
-  if ([input, output, cacheRead, cacheCreation].some((n) => n === null)) return null;
+  const input = Number(usage.input);
+  const output = Number(usage.output);
+  const cacheRead = Number(usage.cacheRead);
+  const cacheCreation = Number(usage.cacheCreation);
+  if (![input, output, cacheRead, cacheCreation].every((n) => Number.isFinite(n) && n >= 0)) return null;
   return { input, output, cacheRead, cacheCreation };
 }
 
