@@ -3510,3 +3510,92 @@ describe("updateSession() — session token usage accumulator", () => {
     assert.strictEqual(session.sessionCallCount, 1);
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Group O: fireCompletionBubble payload enrichment (Task 14 — T14)
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("fireCompletionBubble — enriched payload", () => {
+  let api, ctx;
+  let captured;
+
+  beforeEach(() => {
+    mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+    captured = [];
+    ctx = makeCtx({
+      processKill: () => true,
+      showCompletionBubble: (payload) => captured.push(payload),
+    });
+    api = require("../src/state")(ctx);
+  });
+  afterEach(() => {
+    api.cleanup();
+    mock.timers.reset();
+  });
+
+  it("includes lastTurnUsage / lastTurnCallCount / sessionTokenUsage / sessionCallCount in the payload", () => {
+    // Seed session with both per-turn and cumulative stats populated.
+    const lastTurnUsage = { input: 12, output: 7, cacheRead: 3, cacheCreation: 1, total: 23 };
+    const sessionTokenUsage = { input: 100, output: 50, cacheRead: 10, cacheCreation: 5, total: 165 };
+    const seeded = rawSession("working", {
+      sessionTitle: "build feature",
+    });
+    // rawSession does not know about the per-turn / cumulative stats
+    // fields (T7/T8), nor `startedAt`, so attach them directly.
+    Object.assign(seeded, {
+      startedAt: Date.now() - 1500,
+      lastTurnUsage,
+      lastTurnCallCount: 2,
+      sessionTokenUsage,
+      sessionCallCount: 4,
+    });
+    api.sessions.set("s1", seeded);
+
+    // Trigger the Stop → immediate-celebration branch, which calls
+    // fireCompletionBubble directly (debounce is off by default).
+    api.updateSession("s1", "attention", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+
+    assert.strictEqual(captured.length, 1, "showCompletionBubble should fire exactly once");
+    const payload = captured[0];
+    assert.deepStrictEqual(payload.lastTurnUsage, lastTurnUsage);
+    assert.strictEqual(payload.lastTurnCallCount, 2);
+    assert.deepStrictEqual(payload.sessionTokenUsage, sessionTokenUsage);
+    assert.strictEqual(payload.sessionCallCount, 4);
+    // Sanity: the existing payload fields remain intact.
+    assert.strictEqual(payload.sessionId, "s1");
+    assert.strictEqual(payload.prompt, "build feature");
+    assert.ok(Number.isFinite(payload.durationMs));
+  });
+
+  it("passes null for the four fields when they are not set on the session", () => {
+    api.sessions.set("s2", rawSession("working", {
+      sessionTitle: "untouched session",
+      startedAt: Date.now() - 800,
+    }));
+
+    api.updateSession("s2", "attention", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+
+    assert.strictEqual(captured.length, 1);
+    const payload = captured[0];
+    assert.strictEqual(payload.lastTurnUsage, null);
+    assert.strictEqual(payload.lastTurnCallCount, null);
+    assert.strictEqual(payload.sessionTokenUsage, null);
+    assert.strictEqual(payload.sessionCallCount, null);
+  });
+
+  it("does not fire when the session does not exist", () => {
+    // No session seeded — sessions.get(sessionId) returns undefined.
+    api.updateSession("ghost", "attention", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+    // No payload captured; no throw.
+    assert.strictEqual(captured.length, 0);
+  });
+});
