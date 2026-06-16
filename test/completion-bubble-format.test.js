@@ -2,7 +2,7 @@
 
 const { describe, it } = require("node:test");
 const assert = require("node:assert");
-const { formatDurationMs } = require("../src/completion-bubble-format");
+const { formatDurationMs, formatTokenCount } = require("../src/completion-bubble-format");
 
 describe("formatDurationMs", () => {
   it("returns null for invalid inputs", () => {
@@ -37,5 +37,27 @@ describe("formatDurationMs", () => {
     assert.strictEqual(formatDurationMs(83_000), "1m23s");
     assert.strictEqual(formatDurationMs(125_500), "2m5s");
     assert.strictEqual(formatDurationMs(3_661_000), "61m1s");
+  });
+});
+
+describe("formatTokenCount", () => {
+  it("returns null for non-finite or negative input", () => {
+    assert.strictEqual(formatTokenCount(NaN), null);
+    assert.strictEqual(formatTokenCount(-1), null);
+    assert.strictEqual(formatTokenCount(null), null);
+    assert.strictEqual(formatTokenCount("abc"), null);
+  });
+  it("returns '0' for 0", () => assert.strictEqual(formatTokenCount(0), "0"));
+  it("returns plain number for < 1000", () => assert.strictEqual(formatTokenCount(999), "999"));
+  it("formats 1.2K / 1.23K for 1000-9999", () => {
+    assert.strictEqual(formatTokenCount(1234), "1.2K");
+    assert.strictEqual(formatTokenCount(1235), "1.2K");
+  });
+  it("formats 12K / 123K for 10K-999K", () => {
+    assert.strictEqual(formatTokenCount(12345), "12K");
+    assert.strictEqual(formatTokenCount(123456), "123K");
+  });
+  it("formats 1.2M for >= 1M", () => {
+    assert.strictEqual(formatTokenCount(1234567), "1.2M");
   });
 });

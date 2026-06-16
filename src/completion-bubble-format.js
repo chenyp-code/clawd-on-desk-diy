@@ -19,9 +19,23 @@
     return `${min}m${sec}s`;
   }
 
+  // Locale-neutral token count formatter. Returns null for invalid input so
+  // callers can decide how to render. Uses uppercase K/M, e.g. "1.2K", "1.2M".
+  // The completion-bubble HTML renderer inlines a copy of this helper because
+  // its CSP blocks <script src>; keep both copies in sync when changing rules.
+  function formatTokenCount(n) {
+    if (n === null || n === undefined) return null;
+    const v = Number(n);
+    if (!Number.isFinite(v) || v < 0) return null;
+    if (v < 1000) return String(Math.round(v));
+    if (v < 10000) return `${(v / 1000).toFixed(1)}K`;
+    if (v < 1000000) return `${Math.round(v / 1000)}K`;
+    return `${(v / 1000000).toFixed(1)}M`;
+  }
+
   if (typeof module !== "undefined" && module.exports) {
-    module.exports = { formatDurationMs };
+    module.exports = { formatDurationMs, formatTokenCount };
   } else {
-    root.ClawdCompletionBubbleFormat = { formatDurationMs };
+    root.ClawdCompletionBubbleFormat = { formatDurationMs, formatTokenCount };
   }
 })(typeof globalThis !== "undefined" ? globalThis : this);
