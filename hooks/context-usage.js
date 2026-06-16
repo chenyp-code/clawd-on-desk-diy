@@ -168,6 +168,22 @@ function countAssistantCallsInLastTurn(entries, sessionId) {
   return count;
 }
 
+function findLastAssistantEntry(entries, sessionId) {
+  if (!Array.isArray(entries)) return null;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (!e || typeof e !== "object") continue;
+    if (e.type !== "assistant") continue;
+    if (e.isApiErrorMessage === true) continue;
+    if (!entryMatchesSession(e, sessionId)) continue;
+    // NOTE: deliberately INCLUDES sidechain / sub-agent — the id is used to
+    // anchor session-cumulative accumulation, which counts sub-agent runs.
+    if (!computeAssistantUsage(e)) continue;
+    return e;
+  }
+  return null;
+}
+
 module.exports = {
   CLAUDE_1M_CONTEXT_LIMIT,
   DEFAULT_CLAUDE_CONTEXT_LIMIT,
@@ -176,5 +192,6 @@ module.exports = {
   countAssistantCallsInLastTurn,
   extractClaudeContextUsageFromEntries,
   extractClaudeLastTurnUsageFromEntries,
+  findLastAssistantEntry,
   resolveClaudeContextLimit,
 };

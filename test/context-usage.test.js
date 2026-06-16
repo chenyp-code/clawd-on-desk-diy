@@ -326,3 +326,54 @@ describe("Claude per-turn usage parser", () => {
     assert.strictEqual(extractClaudeLastTurnUsageFromEntries(null, "s1"), null);
   });
 });
+
+const { findLastAssistantEntry } = require("../hooks/context-usage");
+
+describe("findLastAssistantEntry (session-cumulative anchor)", () => {
+  it("returns the latest assistant entry with usage, in session, NOT skipping sidechain", () => {
+    const entry = findLastAssistantEntry([
+      { type: "assistant", sessionId: "s1", uuid: "old", message: { usage: { input_tokens: 1 } } },
+      { type: "assistant", sessionId: "s1", uuid: "new", message: { usage: { input_tokens: 2 } } },
+    ], "s1");
+    assert.strictEqual(entry.uuid, "new");
+  });
+
+  it("includes sub-agent (sidechain) entries — used for session cumulative", () => {
+    const entry = findLastAssistantEntry([
+      { type: "assistant", sessionId: "s1", uuid: "main", message: { usage: { input_tokens: 1 } } },
+      { type: "assistant", sessionId: "s1", isSidechain: true, uuid: "sub", message: { usage: { input_tokens: 2 } } },
+    ], "s1");
+    assert.strictEqual(entry.uuid, "sub");
+  });
+
+  it("skips api-error entries", () => {
+    const entry = findLastAssistantEntry([
+      { type: "assistant", sessionId: "s1", uuid: "real", message: { usage: { input_tokens: 1 } } },
+      { type: "assistant", sessionId: "s1", isApiErrorMessage: true, uuid: "err", message: { usage: { input_tokens: 999 } } },
+    ], "s1");
+    assert.strictEqual(entry.uuid, "real");
+  });
+
+  it("skips cross-session entries", () => {
+    const entry = findLastAssistantEntry([
+      { type: "assistant", sessionId: "s1", uuid: "real", message: { usage: { input_tokens: 1 } } },
+      { type: "assistant", sessionId: "other", uuid: "skip", message: { usage: { input_tokens: 2 } } },
+    ], "s1");
+    assert.strictEqual(entry.uuid, "real");
+  });
+
+  it("skips entries without usage", () => {
+    const entry = findLastAssistantEntry([
+      { type: "assistant", sessionId: "s1", uuid: "nope", message: { content: [] } },
+      { type: "assistant", sessionId: "s1", uuid: "yes", message: { usage: { input_tokens: 1 } } },
+    ], "s1");
+    assert.strictEqual(entry.uuid, "yes");
+  });
+
+  it("returns null when nothing matches", () => {
+    assert.strictEqual(findLastAssistantEntry([], "s1"), null);
+    assert.strictEqual(findLastAssistantEntry([
+      { type: "user", sessionId: "s1" },
+    ], "s1"), null);
+  });
+});
