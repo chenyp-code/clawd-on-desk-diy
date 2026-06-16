@@ -64,6 +64,10 @@ function normalizeAssistantUsageForMerge(usage) {
   return { input, output, cacheRead, cacheCreation };
 }
 
+function isUsageObject(v) {
+  return !!v && typeof v === "object" && !Array.isArray(v);
+}
+
 function mergeSessionTokenUsage(state, entryId, usage) {
   const base = state && typeof state === "object" ? state : resetSessionTokenUsage();
   if (typeof entryId !== "string" || !entryId) return base;
@@ -1189,6 +1193,10 @@ function updateSession(sessionId, state, event, opts = {}) {
     backgroundTasksCount = 0,
     sessionCronsCount = 0,
     stopHookActive = false,
+    lastTurnUsage = null,
+    lastTurnCallCount = 0,
+    lastAssistantEntryId = null,
+    lastAssistantUsage = null,
   } = opts;
   if (startupRecoveryActive) {
     startupRecoveryActive = false;
@@ -1271,6 +1279,12 @@ function updateSession(sessionId, state, event, opts = {}) {
         ghosttyTerminalId: srcGhosttyTerminalId,
         sessionTitle: srcSessionTitle,
         contextUsage: srcContextUsage,
+        lastTurnUsage: (existing && existing.lastTurnUsage) || null,
+        lastTurnCallCount: (existing && Number.isFinite(existing.lastTurnCallCount)) ? existing.lastTurnCallCount : 0,
+        lastAssistantEntryId: (existing && existing.lastAssistantEntryId) || null,
+        lastAssistantUsage: (existing && existing.lastAssistantUsage) || null,
+        sessionTokenUsage: (existing && existing.sessionTokenUsage) || emptySessionTokenUsage(),
+        sessionCallCount: (existing && Number.isFinite(existing.sessionCallCount)) ? existing.sessionCallCount : 0,
         recentEvents,
         pidReachable: resolvePidReachable(existing, srcAgentPid, srcPid),
         resumeState: (existing && existing.resumeState) || null,
@@ -1302,6 +1316,62 @@ function updateSession(sessionId, state, event, opts = {}) {
   // ever been named keeps that name until the user explicitly renames it.
   const srcSessionTitle = normalizeTitle(sessionTitle) || (existing && existing.sessionTitle) || null;
   const srcContextUsage = normalizeContextUsage(contextUsage) || (existing && existing.contextUsage) || null;
+  // Per-turn token/call fields (Task 7 — T7). Hook sends last_turn_usage /
+  // last_assistant_entry_id / last_assistant_usage; server route normalizes
+  // them into opts. We treat the usage as a sticky last-seen snapshot — a
+  // follow-up event without the field keeps the previous value.
+  const srcLastTurnUsage = isUsageObject(lastTurnUsage)
+    ? lastTurnUsage
+    : (existing && existing.lastTurnUsage) || null;
+  const srcLastTurnCallCount = Number.isFinite(Number(lastTurnCallCount))
+    ? Math.max(0, Math.round(Number(lastTurnCallCount)))
+    : (existing && Number.isFinite(existing.lastTurnCallCount) ? existing.lastTurnCallCount : 0);
+  const srcLastAssistantEntryId = event === "SessionStart"
+    ? null
+    : ((typeof lastAssistantEntryId === "string" && lastAssistantEntryId)
+      ? lastAssistantEntryId
+      : (existing && existing.lastAssistantEntryId) || null);
+  const srcLastAssistantUsage = event === "SessionStart"
+    ? null
+    : (isUsageObject(lastAssistantUsage)
+      ? lastAssistantUsage
+      : (existing && existing.lastAssistantUsage) || null);
+  // Session-cumulative accumulator. SessionStart is the canonical reset
+  // boundary — when Claude Code restarts a session the cumulative totals
+  // from the previous run must not bleed into the new one.
+  let accSessionTokenUsage;
+  let accSessionCallCount;
+  let accSeenAssistantEntryIds;
+  if (event === "SessionStart") {
+    const reset = resetSessionTokenUsage();
+    accSessionTokenUsage = reset.sessionTokenUsage;
+    accSessionCallCount = reset.sessionCallCount;
+    accSeenAssistantEntryIds = reset.seenAssistantEntryIds;
+  } else {
+    accSessionTokenUsage = existing && existing.sessionTokenUsage
+      ? existing.sessionTokenUsage
+      : emptySessionTokenUsage();
+    accSessionCallCount = existing && Number.isFinite(existing.sessionCallCount)
+      ? existing.sessionCallCount
+      : 0;
+    accSeenAssistantEntryIds = existing && Array.isArray(existing.seenAssistantEntryIds)
+      ? existing.seenAssistantEntryIds
+      : [];
+  }
+  if (srcLastAssistantEntryId && srcLastAssistantUsage && isUsageObject(srcLastAssistantUsage)) {
+    const acc = mergeSessionTokenUsage(
+      {
+        sessionTokenUsage: accSessionTokenUsage,
+        sessionCallCount: accSessionCallCount,
+        seenAssistantEntryIds: accSeenAssistantEntryIds,
+      },
+      srcLastAssistantEntryId,
+      srcLastAssistantUsage,
+    );
+    accSessionTokenUsage = acc.sessionTokenUsage;
+    accSessionCallCount = acc.sessionCallCount;
+    accSeenAssistantEntryIds = acc.seenAssistantEntryIds;
+  }
   // Per-turn timer anchor for the completion bubble's duration chip. Set on
   // UserPromptSubmit (turn start), sticky until the next prompt. Declared
   // here — before the Stop gate at L1242 — because the gate reads it via
@@ -1423,7 +1493,7 @@ function updateSession(sessionId, state, event, opts = {}) {
   const srcLastStopAt = isStopBoundary
     ? Date.now()
     : (existing && Number.isFinite(existing.lastStopAt) ? existing.lastStopAt : null);
-  const base = { sourcePid: srcPid, wtHwnd: srcWtHwnd, cwd: srcCwd, editor: srcEditor, pidChain: srcPidChain, agentPid: srcAgentPid, agentId: srcAgentId, host: srcHost, headless: srcHeadless, platform: srcPlatform, model: srcModel, provider: srcProvider, codexOriginator: srcCodexOriginator, codexSource: srcCodexSource, ghosttyTerminalId: srcGhosttyTerminalId, sessionTitle: srcSessionTitle, contextUsage: srcContextUsage, assistantLastOutput: srcAssistantLastOutput, assistantLastOutputTruncated: srcAssistantLastOutputTruncated, recentEvents, pidReachable, lastToolBoundaryAt: srcLastToolBoundaryAt, lastStopAt: srcLastStopAt, startedAt: srcStartedAt, awaitingInputSinceStop: resolveAwaitingInputSinceStop(existing, event), muteNotificationSound: state === "notification" && muteNotificationSound === true };
+  const base = { sourcePid: srcPid, wtHwnd: srcWtHwnd, cwd: srcCwd, editor: srcEditor, pidChain: srcPidChain, agentPid: srcAgentPid, agentId: srcAgentId, host: srcHost, headless: srcHeadless, platform: srcPlatform, model: srcModel, provider: srcProvider, codexOriginator: srcCodexOriginator, codexSource: srcCodexSource, ghosttyTerminalId: srcGhosttyTerminalId, sessionTitle: srcSessionTitle, contextUsage: srcContextUsage, lastTurnUsage: srcLastTurnUsage, lastTurnCallCount: srcLastTurnCallCount, lastAssistantEntryId: srcLastAssistantEntryId, lastAssistantUsage: srcLastAssistantUsage, sessionTokenUsage: accSessionTokenUsage, sessionCallCount: accSessionCallCount, seenAssistantEntryIds: accSeenAssistantEntryIds, assistantLastOutput: srcAssistantLastOutput, assistantLastOutputTruncated: srcAssistantLastOutputTruncated, recentEvents, pidReachable, lastToolBoundaryAt: srcLastToolBoundaryAt, lastStopAt: srcLastStopAt, startedAt: srcStartedAt, awaitingInputSinceStop: resolveAwaitingInputSinceStop(existing, event), muteNotificationSound: state === "notification" && muteNotificationSound === true };
   if (preserveCompletionAck) base.requiresCompletionAck = true;
 
   // Evict oldest session if at capacity and this is a new session.

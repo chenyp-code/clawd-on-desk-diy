@@ -3376,3 +3376,137 @@ describe("antigravity trailing PostToolUse filter", () => {
     assert.ok(after.lastToolBoundaryAt > after.lastStopAt, "new turn should refresh tool boundary after Stop");
   });
 });
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Group N: per-event session cumulative accumulation (Task 7 — T7)
+// ═════════════════════════════════════════════════════════════════════════════
+
+describe("updateSession() — session token usage accumulator", () => {
+  let api, ctx;
+
+  beforeEach(() => {
+    mock.timers.enable({ apis: ["setTimeout", "setInterval", "Date"] });
+    ctx = makeCtx({ processKill: () => true });
+    api = require("../src/state")(ctx);
+  });
+  afterEach(() => {
+    api.cleanup();
+    mock.timers.reset();
+  });
+
+  function driveUsage(o) {
+    api.updateSession(
+      o.id || "s1",
+      o.state || "working",
+      o.event || "Notification",
+      {
+        agentId: o.agentId || "claude-code",
+        cwd: "/tmp",
+        lastAssistantEntryId: o.lastAssistantEntryId ?? null,
+        lastAssistantUsage: o.lastAssistantUsage ?? null,
+        lastTurnUsage: o.lastTurnUsage ?? null,
+        lastTurnCallCount: o.lastTurnCallCount ?? 0,
+      },
+    );
+  }
+
+  it("accumulates sessionTokenUsage across events with distinct last_assistant_entry_id", () => {
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e1",
+      lastAssistantUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+    });
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e2",
+      lastAssistantUsage: { input: 200, output: 80, cacheRead: 10, cacheCreation: 5 },
+    });
+
+    const session = api.sessions.get("s1");
+    assert.deepStrictEqual(session.sessionTokenUsage, {
+      input: 300,
+      output: 130,
+      cacheRead: 10,
+      cacheCreation: 5,
+      total: 445,
+    });
+    assert.strictEqual(session.sessionCallCount, 2);
+    assert.strictEqual(session.lastAssistantEntryId, "e2");
+  });
+
+  it("does NOT double-count when the same last_assistant_entry_id arrives twice", () => {
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e1",
+      lastAssistantUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+    });
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e1",
+      lastAssistantUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.sessionCallCount, 1);
+    assert.strictEqual(session.sessionTokenUsage.total, 150);
+  });
+
+  it("resets sessionTokenUsage / sessionCallCount on SessionStart", () => {
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e1",
+      lastAssistantUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+    });
+    assert.strictEqual(api.sessions.get("s1").sessionCallCount, 1);
+
+    api.updateSession("s1", "thinking", "SessionStart", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.sessionCallCount, 0);
+    assert.strictEqual(session.sessionTokenUsage.total, 0);
+
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e9",
+      lastAssistantUsage: { input: 50, output: 25, cacheRead: 0, cacheCreation: 0 },
+    });
+
+    const after = api.sessions.get("s1");
+    assert.strictEqual(after.sessionCallCount, 1);
+    assert.strictEqual(after.sessionTokenUsage.total, 75);
+  });
+
+  it("lastAssistantEntryId stays sticky when later events omit it", () => {
+    driveUsage({
+      id: "s1",
+      state: "notification",
+      event: "Notification",
+      lastAssistantEntryId: "e1",
+      lastAssistantUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+    });
+    // Follow-up event without lastAssistantEntryId / lastAssistantUsage
+    api.updateSession("s1", "working", "PreToolUse", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.lastAssistantEntryId, "e1");
+    assert.strictEqual(session.sessionCallCount, 1);
+  });
+});
