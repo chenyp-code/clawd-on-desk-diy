@@ -4,10 +4,48 @@ const { describe, it } = require("node:test");
 const assert = require("node:assert");
 
 const {
+  countAssistantCallsInLastTurn,
   extractClaudeContextUsageFromEntries,
   extractClaudeLastTurnUsageFromEntries,
   resolveClaudeContextLimit,
 } = require("../hooks/context-usage");
+
+describe("Claude per-turn call counter", () => {
+  it("returns 0 when no user entry precedes any assistant entry", () => {
+    assert.strictEqual(countAssistantCallsInLastTurn([
+      { type: "assistant", sessionId: "s1" },
+    ], "s1"), 0);
+  });
+
+  it("counts only assistant entries after the latest non-tool_result user entry, in session", () => {
+    const n = countAssistantCallsInLastTurn([
+      { type: "user", sessionId: "s1", message: { content: "hi" } },
+      { type: "assistant", sessionId: "s1" },
+      { type: "assistant", sessionId: "s1" },
+      { type: "user", sessionId: "s1", message: { content: [{ type: "tool_result" }] } },
+      { type: "assistant", sessionId: "s1" },
+      { type: "assistant", sessionId: "s1" },
+      { type: "assistant", sessionId: "s1" },
+    ], "s1");
+    assert.strictEqual(n, 5);
+  });
+
+  it("does not count sidechain / api-error / cross-session entries", () => {
+    const n = countAssistantCallsInLastTurn([
+      { type: "user", sessionId: "s1", message: { content: "hi" } },
+      { type: "assistant", sessionId: "s1", isSidechain: true },
+      { type: "assistant", sessionId: "s1", isApiErrorMessage: true },
+      { type: "assistant", sessionId: "other" },
+      { type: "assistant", sessionId: "s1" },
+    ], "s1");
+    assert.strictEqual(n, 1);
+  });
+
+  it("returns 0 for empty / non-array input", () => {
+    assert.strictEqual(countAssistantCallsInLastTurn([], "s1"), 0);
+    assert.strictEqual(countAssistantCallsInLastTurn(null, "s1"), 0);
+  });
+});
 
 describe("Claude context usage parser", () => {
   it("extracts the latest assistant input usage with cache tokens", () => {

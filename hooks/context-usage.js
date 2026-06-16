@@ -141,11 +141,39 @@ function extractClaudeLastTurnUsageFromEntries(entries, sessionId) {
   return aggregate;
 }
 
+function countAssistantCallsInLastTurn(entries, sessionId) {
+  if (!Array.isArray(entries)) return 0;
+  let turnStart = -1;
+  for (let i = entries.length - 1; i >= 0; i--) {
+    const e = entries[i];
+    if (!e || typeof e !== "object") continue;
+    if (e.type !== "user") continue;
+    if (!entryMatchesSession(e, sessionId)) continue;
+    if (userEntryIsToolResultOnly(e)) continue;
+    turnStart = i;
+    break;
+  }
+  if (turnStart < 0) return 0;
+
+  let count = 0;
+  for (let i = turnStart + 1; i < entries.length; i++) {
+    const e = entries[i];
+    if (!e || typeof e !== "object") continue;
+    if (e.type !== "assistant") continue;
+    if (e.isApiErrorMessage === true) continue;
+    if (!entryMatchesSession(e, sessionId)) continue;
+    if (entryLooksSubagent(e)) continue;
+    count += 1;
+  }
+  return count;
+}
+
 module.exports = {
   CLAUDE_1M_CONTEXT_LIMIT,
   DEFAULT_CLAUDE_CONTEXT_LIMIT,
   computeAssistantUsage,
   computeClaudeUsageFromEntry,
+  countAssistantCallsInLastTurn,
   extractClaudeContextUsageFromEntries,
   extractClaudeLastTurnUsageFromEntries,
   resolveClaudeContextLimit,
