@@ -3588,14 +3588,4 @@ describe("fireCompletionBubble — enriched payload", () => {
     assert.strictEqual(payload.sessionTokenUsage, null);
     assert.strictEqual(payload.sessionCallCount, null);
   });
-
-  it("does not fire when the session does not exist", () => {
-    // No session seeded — sessions.get(sessionId) returns undefined.
-    api.updateSession("ghost", "attention", "Stop", {
-      agentId: "claude-code",
-      cwd: "/tmp",
-    });
-    // No payload captured; no throw.
-    assert.strictEqual(captured.length, 0);
-  });
 });

@@ -1114,17 +1114,16 @@ function clearAllCompletionDebounces() {
 function fireCompletionBubble(sessionId, sessionTitle, startedAt) {
   if (typeof ctx.showCompletionBubble !== "function") return;
   const session = sessions.get(sessionId);
-  if (!session) return;
   const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : null;
   try {
     ctx.showCompletionBubble({
       sessionId,
       prompt: sessionTitle || "",
       durationMs,
-      lastTurnUsage: session.lastTurnUsage ? session.lastTurnUsage : null,
-      lastTurnCallCount: Number.isFinite(Number(session.lastTurnCallCount)) ? session.lastTurnCallCount : null,
-      sessionTokenUsage: session.sessionTokenUsage ? session.sessionTokenUsage : null,
-      sessionCallCount: Number.isFinite(Number(session.sessionCallCount)) ? session.sessionCallCount : null,
+      lastTurnUsage: session && session.lastTurnUsage ? session.lastTurnUsage : null,
+      lastTurnCallCount: session && Number.isFinite(Number(session.lastTurnCallCount)) ? session.lastTurnCallCount : null,
+      sessionTokenUsage: session && session.sessionTokenUsage ? session.sessionTokenUsage : null,
+      sessionCallCount: session && Number.isFinite(Number(session.sessionCallCount)) ? session.sessionCallCount : null,
     });
   } catch {}
 }
