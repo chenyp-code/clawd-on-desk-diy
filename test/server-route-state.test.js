@@ -265,7 +265,7 @@ describe("server-route-state POST", () => {
   it("normalizes last_turn_call_count to non-negative integer or null", async () => {
     const cases = [
       { input: 3.7, expected: 4 },
-      { input: -5, expected: null },
+      { input: -5, expected: 0 },
       { input: "garbage", expected: null },
       { input: 0, expected: 0 },
     ];

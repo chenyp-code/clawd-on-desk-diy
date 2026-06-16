@@ -158,10 +158,7 @@ function handleStatePost(req, res, options) {
       const rawTitle = typeof data.session_title === "string" ? data.session_title.trim() : "";
       const sessionTitle = rawTitle || null;
       const contextUsage = normalizeContextUsage(data.context_usage);
-      const rawLastTurnCallCount = Number(data.last_turn_call_count);
-      const lastTurnCallCount = Number.isFinite(rawLastTurnCallCount) && rawLastTurnCallCount >= 0
-        ? Math.round(rawLastTurnCallCount)
-        : null;
+      const lastTurnCallCount = Number.isFinite(Number(data.last_turn_call_count)) ? Math.max(0, Math.round(Number(data.last_turn_call_count))) : null;
       const lastTurnUsage = normalizeAssistantUsageShape(data.last_turn_usage);
       const lastAssistantEntryId = (typeof data.last_assistant_entry_id === "string" && data.last_assistant_entry_id) ? data.last_assistant_entry_id : null;
       const lastAssistantUsage = normalizeAssistantUsageShape(data.last_assistant_usage);
