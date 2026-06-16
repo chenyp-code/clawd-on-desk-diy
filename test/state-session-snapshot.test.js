@@ -492,4 +492,70 @@ describe("state-session-snapshot builder", () => {
     const flagged = buildSessionSnapshot(flaggedSessions, { statePriority: STATE_PRIORITY, getAgentIconUrl: () => null });
     assert.notStrictEqual(sessionSnapshotSignature(base), sessionSnapshotSignature(flagged));
   });
+
+  // ── T8: per-turn + session-cumulative token/call fields ──
+  it("includes lastTurnUsage, lastTurnCallCount, lastAssistantEntryId, lastAssistantUsage, sessionTokenUsage, sessionCallCount when set", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["s1", session("working", {
+        lastTurnUsage: { input: 10, output: 20, cacheRead: 30, cacheCreation: 40 },
+        lastTurnCallCount: 7,
+        lastAssistantEntryId: "entry-abc",
+        lastAssistantUsage: { input: 1, output: 2, cacheRead: 3, cacheCreation: 4 },
+        sessionTokenUsage: { input: 100, output: 200, cacheRead: 300, cacheCreation: 400 },
+        sessionCallCount: 12,
+      })],
+    ]), { statePriority: STATE_PRIORITY });
+
+    const entry = snapshot.sessions[0];
+    assert.deepStrictEqual(entry.lastTurnUsage, {
+      input: 10, output: 20, cacheRead: 30, cacheCreation: 40, total: 100,
+    });
+    assert.strictEqual(entry.lastTurnCallCount, 7);
+    assert.strictEqual(entry.lastAssistantEntryId, "entry-abc");
+    assert.deepStrictEqual(entry.lastAssistantUsage, {
+      input: 1, output: 2, cacheRead: 3, cacheCreation: 4, total: 10,
+    });
+    assert.deepStrictEqual(entry.sessionTokenUsage, {
+      input: 100, output: 200, cacheRead: 300, cacheCreation: 400, total: 1000,
+    });
+    assert.strictEqual(entry.sessionCallCount, 12);
+  });
+
+  it("returns null / 0 defaults when the per-turn and session-cumulative fields are absent", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["s1", session("idle")],
+    ]), { statePriority: STATE_PRIORITY });
+
+    const entry = snapshot.sessions[0];
+    assert.strictEqual(entry.lastTurnUsage, null);
+    assert.strictEqual(entry.lastTurnCallCount, 0);
+    assert.strictEqual(entry.lastAssistantEntryId, null);
+    assert.strictEqual(entry.lastAssistantUsage, null);
+    assert.strictEqual(entry.sessionTokenUsage, null);
+    assert.strictEqual(entry.sessionCallCount, 0);
+  });
+
+  it("does NOT include seenAssistantEntryIds in the snapshot entry (internal-only)", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["s1", session("working", {
+        seenAssistantEntryIds: ["e1", "e2", "e3"],
+      })],
+    ]), { statePriority: STATE_PRIORITY });
+
+    const entry = snapshot.sessions[0];
+    assert.strictEqual(Object.prototype.hasOwnProperty.call(entry, "seenAssistantEntryIds"), false);
+  });
+
+  it("clamps negative or non-finite per-turn / session-cumulative call counts to 0", () => {
+    const snapshot = buildSessionSnapshot(new Map([
+      ["s1", session("working", {
+        lastTurnCallCount: -5,
+        sessionCallCount: NaN,
+      })],
+    ]), { statePriority: STATE_PRIORITY });
+
+    const entry = snapshot.sessions[0];
+    assert.strictEqual(entry.lastTurnCallCount, 0);
+    assert.strictEqual(entry.sessionCallCount, 0);
+  });
 });

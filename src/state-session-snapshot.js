@@ -206,6 +206,15 @@ function buildSessionSnapshotEntry(id, session, sessionAliases = {}, options = {
     codexOriginator: (session && session.codexOriginator) || null,
     codexSource: (session && session.codexSource) || null,
     contextUsage: snapshotContextUsage(session),
+    lastTurnUsage: snapshotLastTurnUsage(session),
+    lastTurnCallCount: Number.isFinite(Number(session && session.lastTurnCallCount))
+      ? Math.max(0, Math.round(Number(session.lastTurnCallCount))) : 0,
+    lastAssistantEntryId: (session && typeof session.lastAssistantEntryId === "string")
+      ? session.lastAssistantEntryId : null,
+    lastAssistantUsage: snapshotAssistantUsageShape(session && session.lastAssistantUsage),
+    sessionTokenUsage: snapshotSessionTokenUsage(session),
+    sessionCallCount: Number.isFinite(Number(session && session.sessionCallCount))
+      ? Math.max(0, Math.round(Number(session.sessionCallCount))) : 0,
     assistantLastOutput: (session && typeof session.assistantLastOutput === "string")
       ? session.assistantLastOutput
       : null,
@@ -233,6 +242,24 @@ function snapshotContextUsage(session) {
   if (Number.isFinite(percent)) out.percent = Math.max(0, Math.min(100, Math.round(percent)));
   if (usage.source === "claude" || usage.source === "codex") out.source = usage.source;
   return out;
+}
+
+function snapshotAssistantUsageShape(value) {
+  if (!value || typeof value !== "object") return null;
+  const input = Number(value.input);
+  const output = Number(value.output);
+  const cacheRead = Number(value.cacheRead);
+  const cacheCreation = Number(value.cacheCreation);
+  if (![input, output, cacheRead, cacheCreation].every((n) => Number.isFinite(n) && n >= 0)) return null;
+  return { input, output, cacheRead, cacheCreation, total: input + output + cacheRead + cacheCreation };
+}
+
+function snapshotLastTurnUsage(session) {
+  return snapshotAssistantUsageShape(session && session.lastTurnUsage);
+}
+
+function snapshotSessionTokenUsage(session) {
+  return snapshotAssistantUsageShape(session && session.sessionTokenUsage);
 }
 
 function normalizeSessionsIterable(sessions) {
