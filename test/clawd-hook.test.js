@@ -1115,3 +1115,44 @@ describe("buildStateBody — Stop → ApiError upgrade", () => {
     assert.strictEqual(body.state, "attention");
   });
 });
+
+describe("buildStateBody — per-turn / session-cumulative forwarding", () => {
+  it("forwards last_turn_usage, last_turn_call_count, last_assistant_entry_id, last_assistant_usage on Stop", () => {
+    const transcript = writeTmpJsonl([
+      { type: "user", sessionId: "s1", message: { content: "hi" } },
+      { type: "assistant", sessionId: "s1", uuid: "a1", message: { usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } } },
+      { type: "user", sessionId: "s1", message: { content: [{ type: "tool_result" }] } },
+      { type: "assistant", sessionId: "s1", uuid: "a2", message: { usage: { input_tokens: 200, output_tokens: 80, cache_read_input_tokens: 10, cache_creation_input_tokens: 0 } } },
+    ]);
+    const body = buildStateBody("Stop", { session_id: "s1", transcript_path: transcript, cwd: "/x" }, () => ({ stablePid: null, agentPid: null, agentCommandLine: null, detectedEditor: null, pidChain: [], foregroundWtHwnd: null }));
+    assert.deepStrictEqual(body.last_turn_usage, {
+      input: 300, output: 130, cacheRead: 10, cacheCreation: 0, total: 440, source: "claude",
+    });
+    assert.strictEqual(body.last_turn_call_count, 2);
+    assert.strictEqual(body.last_assistant_entry_id, "a2");
+    assert.deepStrictEqual(body.last_assistant_usage, {
+      input: 200, output: 80, cacheRead: 10, cacheCreation: 0, total: 290, source: "claude",
+    });
+  });
+
+  it("omits all new fields when transcript has no usage-bearing assistant entries", () => {
+    const transcript = writeTmpJsonl([
+      { type: "user", sessionId: "s1", message: { content: "hi" } },
+    ]);
+    const body = buildStateBody("UserPromptSubmit", { session_id: "s1", transcript_path: transcript, cwd: "/x" }, () => ({ stablePid: null, agentPid: null, agentCommandLine: null, detectedEditor: null, pidChain: [], foregroundWtHwnd: null }));
+    assert.ok(!("last_turn_usage" in body));
+    assert.ok(!("last_turn_call_count" in body));
+    assert.ok(!("last_assistant_entry_id" in body));
+    assert.ok(!("last_assistant_usage" in body));
+  });
+
+  it("includes sub-agent run in last_assistant_entry_id (session-cumulative anchor)", () => {
+    const transcript = writeTmpJsonl([
+      { type: "user", sessionId: "s1" },
+      { type: "assistant", sessionId: "s1", uuid: "main", message: { usage: { input_tokens: 1 } } },
+      { type: "assistant", sessionId: "s1", isSidechain: true, uuid: "sub", message: { usage: { input_tokens: 2 } } },
+    ]);
+    const body = buildStateBody("Stop", { session_id: "s1", transcript_path: transcript, cwd: "/x" }, () => ({ stablePid: null, agentPid: null, agentCommandLine: null, detectedEditor: null, pidChain: [], foregroundWtHwnd: null }));
+    assert.strictEqual(body.last_assistant_entry_id, "sub");
+  });
+});

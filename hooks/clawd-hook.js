@@ -6,7 +6,12 @@
 const crypto = require("crypto");
 const fs = require("fs");
 const { postStateToRunningServer, readHostPrefix } = require("./server-config");
-const { extractClaudeContextUsageFromEntries } = require("./context-usage");
+const {
+  extractClaudeContextUsageFromEntries,
+  extractClaudeLastTurnUsageFromEntries,
+  countAssistantCallsInLastTurn,
+  findLastAssistantEntry,
+} = require("./context-usage");
 const { createPidResolver, readStdinJson, getPlatformConfig } = require("./shared-process");
 
 const TRANSCRIPT_TAIL_BYTES = 262144; // 256 KB
@@ -416,6 +421,36 @@ function buildStateBody(event, payload, resolve) {
     payload.session_id || null,
   );
   if (contextUsage) body.context_usage = contextUsage;
+  const lastTurnUsage = extractClaudeLastTurnUsageFromEntries(
+    transcriptEntries,
+    payload.session_id || null,
+  );
+  if (lastTurnUsage) body.last_turn_usage = lastTurnUsage;
+  const lastTurnCallCount = countAssistantCallsInLastTurn(
+    transcriptEntries,
+    payload.session_id || null,
+  );
+  if (lastTurnCallCount > 0) body.last_turn_call_count = lastTurnCallCount;
+  const lastAssistant = findLastAssistantEntry(
+    transcriptEntries,
+    payload.session_id || null,
+  );
+  if (lastAssistant && lastAssistant.uuid && lastAssistant.message && lastAssistant.message.usage) {
+    body.last_assistant_entry_id = String(lastAssistant.uuid);
+    const u = lastAssistant.message.usage;
+    const input = Number(u.input_tokens) || 0;
+    const output = Number(u.output_tokens) || 0;
+    const cacheRead = Number(u.cache_read_input_tokens) || 0;
+    const cacheCreation = Number(u.cache_creation_input_tokens) || 0;
+    body.last_assistant_usage = {
+      input,
+      output,
+      cacheRead,
+      cacheCreation,
+      total: input + output + cacheRead + cacheCreation,
+      source: "claude",
+    };
+  }
   const sessionTitle =
     normalizeTitle(payload.session_title) ||
     extractSessionTitleFromEntries(transcriptEntries);
