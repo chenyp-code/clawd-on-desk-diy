@@ -171,25 +171,31 @@ body { padding: 6px; }
 .stats {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-top: 2px;
+  gap: 6px;
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  .stats { border-top-color: rgba(255, 255, 255, 0.08); }
 }
 .stats-row {
   display: flex;
   flex-direction: column;
-  gap: 1px;
-  font-size: 11px;
+  gap: 2px;
+  font-size: 13px;
   line-height: 1.3;
   color: var(--text-main);
   font-variant-numeric: tabular-nums;
 }
 .stats-main {
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-main);
+  letter-spacing: 0.01em;
 }
 .stats-detail {
   color: var(--text-muted);
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -260,25 +266,62 @@ function formatTokenCount(n) {
   return `${(v / 1000000).toFixed(1)}M`;
 }
 
-// Render one stats row (per-turn ▲ or session Σ). Returns "" when usage is
+// Word-based labels that mirror the HUD chip vocabulary. Word labels read
+// better than ▲/Σ glyphs for non-technical users and stay readable in any
+// language. The completion-bubble's tiny HTML bundle keeps a local copy of
+// the strings (CSP blocks the i18n module load) — keep in sync with
+// src/i18n.js hudThisTurnChip / hudSessionChip templates.
+const STATS_LABEL_DICTS = {
+  en:    { turn: "This turn",  session: "Session" },
+  zh:    { turn: "本轮",        session: "累计" },
+  "zh-TW": { turn: "本輪",      session: "累計" },
+  ko:    { turn: "이번 턴",     session: "세션 누적" },
+  ja:    { turn: "このターン",   session: "セッション累計" },
+};
+const STATS_CALL_DICTS = {
+  en:    { one: "{n} call",     many: "{n} calls" },
+  zh:    { one: "{n} 次调用",    many: "{n} 次调用" },
+  "zh-TW": { one: "{n} 次呼叫", many: "{n} 次呼叫" },
+  ko:    { one: "{n}회",         many: "{n}회" },
+  ja:    { one: "{n} 回",        many: "{n} 回" },
+};
+
+function statsLabelForLang(lang, kind) {
+  const dict = STATS_LABEL_DICTS[lang] || STATS_LABEL_DICTS.en;
+  return dict[kind] || dict.turn;
+}
+
+function callsLabelForLang(lang, count) {
+  const dict = STATS_CALL_DICTS[lang] || STATS_CALL_DICTS.en;
+  // English distinguishes singular/plural; CJK forms don't.
+  if (lang === "en") {
+    const template = count === 1 ? dict.one : dict.many;
+    return template.replace("{n}", String(count));
+  }
+  return dict.many.replace("{n}", String(count));
+}
+
+// Render one stats row (per-turn or session totals). Returns "" when usage is
 // missing so the caller can concat freely. Total = input + output + cacheRead
-// + cacheCreation. Glyphs ▲/Σ mirror the in-bubble vocabulary used in the
-// dashboard and HUD; no new i18n strings needed.
-function formatStatLine(usage, count, kind) {
+// + cacheCreation. Word-based labels mirror src/i18n.js hudThisTurnChip /
+// hudSessionChip; no glyphs so non-technical readers don't have to decode
+// ▲/Σ.
+function formatStatLine(usage, count, kind, lang) {
   if (!usage) return "";
   const inNum = Number(usage.input) || 0;
   const outNum = Number(usage.output) || 0;
   const cache = (Number(usage.cacheRead) || 0) + (Number(usage.cacheCreation) || 0);
   const total = inNum + outNum + cache;
-  const glyph = kind === "turn" ? "▲" : "Σ";
+  const label = statsLabelForLang(lang, kind);
   const inFmt = formatTokenCount(inNum) || "0";
   const outFmt = formatTokenCount(outNum) || "0";
   const cacheFmt = formatTokenCount(cache) || "0";
   const totalFmt = formatTokenCount(total) || "0";
   const calls = Number.isFinite(Number(count)) ? Math.max(0, Math.round(Number(count))) : 0;
+  const callsText = callsLabelForLang(lang, calls);
   return (
     `<div class="stats-row ${kind}">` +
-      `<span class="stats-main">${glyph} ${totalFmt} · ${calls} calls</span>` +
+      `<span class="stats-main">${label} ${totalFmt} · ${callsText}</span>` +
       `<span class="stats-detail">${inFmt}↑ ${outFmt}↓ ${cacheFmt}↻</span>` +
     `</div>`
   );
@@ -375,12 +418,12 @@ function show(payload) {
     durationEl.classList.remove("shown");
   }
 
-  // Token stats block (per-turn ▲ + session Σ). Hidden entirely when the
+  // Token stats block (per-turn + session totals). Hidden entirely when the
   // payload carries neither field, so legacy / pre-stats sessions render
   // the same compact card. The two rows are independently optional —
   // formatStatLine returns "" for the missing side.
-  const turnText = formatStatLine(payload.lastTurnUsage, payload.lastTurnCallCount, "turn");
-  const sessText = formatStatLine(payload.sessionTokenUsage, payload.sessionCallCount, "session");
+  const turnText = formatStatLine(payload.lastTurnUsage, payload.lastTurnCallCount, "turn", lang);
+  const sessText = formatStatLine(payload.sessionTokenUsage, payload.sessionCallCount, "session", lang);
   if (turnText || sessText) {
     statsEl.innerHTML = turnText + sessText;
     statsEl.style.display = "";

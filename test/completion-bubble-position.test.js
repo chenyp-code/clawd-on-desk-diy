@@ -141,7 +141,7 @@ describe("completion bubble estimateHeight — token stats", () => {
       lastTurnUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
       lastTurnCallCount: 3,
     });
-    assert.strictEqual(withTurn, baseline + 36);
+    assert.strictEqual(withTurn, baseline + 44);
   });
 
   it("adds height for stats block when sessionTokenUsage is present (no lastTurnUsage)", () => {
@@ -150,7 +150,7 @@ describe("completion bubble estimateHeight — token stats", () => {
       sessionTokenUsage: { input: 1000, output: 200, cacheRead: 0, cacheCreation: 0 },
       sessionCallCount: 12,
     });
-    assert.strictEqual(withSession, baseline + 36);
+    assert.strictEqual(withSession, baseline + 44);
   });
 
   it("adds height when both lastTurnUsage and sessionTokenUsage are present", () => {
@@ -161,7 +161,7 @@ describe("completion bubble estimateHeight — token stats", () => {
       sessionTokenUsage: { input: 1000, output: 200, cacheRead: 0, cacheCreation: 0 },
       sessionCallCount: 12,
     });
-    assert.strictEqual(withBoth, baseline + 36);
+    assert.strictEqual(withBoth, baseline + 44);
   });
 
   it("returns baseline when neither stat is present", () => {

@@ -80,13 +80,14 @@ function estimateHeight(payload) {
     const wrappedLines = Math.max(1, Math.ceil(promptText.length / 36));
     height += Math.max(promptLines, wrappedLines) * 18;
   }
-  // Token stats block (per-turn ▲ + session Σ) adds two lines at ~18px each.
-  // Reserve the space up front so the initial layout doesn't jump when the
-  // renderer paints the rows. Triggered by either stat field; missing-paired
-  // cases (one row only) still render at the same height to keep the layout
-  // stable when the renderer omits the missing side.
+  // Token stats block (per-turn + session totals) adds two lines, each
+  // ~22px tall at the bumped font size. Reserve the space up front so the
+  // initial layout doesn't jump when the renderer paints the rows.
+  // Triggered by either stat field; missing-paired cases (one row only)
+  // still render at the same height to keep the layout stable when the
+  // renderer omits the missing side.
   if (payload && (payload.lastTurnUsage || payload.sessionTokenUsage)) {
-    height += 36;
+    height += 44;
   }
   return height;
 }

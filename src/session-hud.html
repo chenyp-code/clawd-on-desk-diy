@@ -222,16 +222,19 @@ body { padding: 2px 3px 8px; }
 
 .usage-chip {
   flex: 0 0 auto;
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   line-height: 1;
-  padding: 2px 5px;
-  border-radius: 3px;
+  padding: 3px 6px;
+  border-radius: 4px;
   white-space: nowrap;
+  letter-spacing: 0.01em;
 }
-.usage-neutral { background: rgba(107, 114, 128, 0.13); color: #52525b; }
-.usage-warm { background: rgba(245, 158, 11, 0.15); color: #b45309; }
-.usage-hot { background: rgba(239, 68, 68, 0.10); color: #dc2626; }
+.usage-neutral { background: rgba(99, 102, 241, 0.14); color: #4f46e5; }
+.usage-warm { background: rgba(245, 158, 11, 0.18); color: #b45309; }
+.usage-hot { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+.chip-turn { background: rgba(20, 184, 166, 0.15); color: #0d9488; }
+.chip-session { background: rgba(99, 102, 241, 0.14); color: #4f46e5; }
 
 @media (prefers-color-scheme: dark) {
   .chip-thinking { background: rgba(99, 102, 241, 0.20); color: #818cf8; }
@@ -241,9 +244,11 @@ body { padding: 2px 3px 8px; }
   .chip-notification { background: rgba(245, 158, 11, 0.20); color: #fbbf24; }
   .chip-worktree { background: rgba(59, 130, 246, 0.20); color: #60a5fa; }
   .chip-interrupted { background: rgba(239, 68, 68, 0.15); color: #f87171; }
-  .usage-neutral { background: rgba(107, 114, 128, 0.20); color: #a1a1aa; }
-  .usage-warm { background: rgba(245, 158, 11, 0.20); color: #fbbf24; }
-  .usage-hot { background: rgba(239, 68, 68, 0.15); color: #f87171; }
+  .usage-neutral { background: rgba(99, 102, 241, 0.22); color: #a5b4fc; }
+  .usage-warm { background: rgba(245, 158, 11, 0.24); color: #fbbf24; }
+  .usage-hot { background: rgba(239, 68, 68, 0.22); color: #f87171; }
+  .chip-turn { background: rgba(20, 184, 166, 0.22); color: #5eead4; }
+  .chip-session { background: rgba(99, 102, 241, 0.22); color: #a5b4fc; }
 }
 
 .completion-bell {
