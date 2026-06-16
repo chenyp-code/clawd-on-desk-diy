@@ -1493,6 +1493,8 @@ function updateSession(sessionId, state, event, opts = {}) {
   const srcLastStopAt = isStopBoundary
     ? Date.now()
     : (existing && Number.isFinite(existing.lastStopAt) ? existing.lastStopAt : null);
+  // seenAssistantEntryIds is internal-only accumulator state — T8 snapshot
+  // must filter this out so it never reaches the renderer.
   const base = { sourcePid: srcPid, wtHwnd: srcWtHwnd, cwd: srcCwd, editor: srcEditor, pidChain: srcPidChain, agentPid: srcAgentPid, agentId: srcAgentId, host: srcHost, headless: srcHeadless, platform: srcPlatform, model: srcModel, provider: srcProvider, codexOriginator: srcCodexOriginator, codexSource: srcCodexSource, ghosttyTerminalId: srcGhosttyTerminalId, sessionTitle: srcSessionTitle, contextUsage: srcContextUsage, lastTurnUsage: srcLastTurnUsage, lastTurnCallCount: srcLastTurnCallCount, lastAssistantEntryId: srcLastAssistantEntryId, lastAssistantUsage: srcLastAssistantUsage, sessionTokenUsage: accSessionTokenUsage, sessionCallCount: accSessionCallCount, seenAssistantEntryIds: accSeenAssistantEntryIds, assistantLastOutput: srcAssistantLastOutput, assistantLastOutputTruncated: srcAssistantLastOutputTruncated, recentEvents, pidReachable, lastToolBoundaryAt: srcLastToolBoundaryAt, lastStopAt: srcLastStopAt, startedAt: srcStartedAt, awaitingInputSinceStop: resolveAwaitingInputSinceStop(existing, event), muteNotificationSound: state === "notification" && muteNotificationSound === true };
   if (preserveCompletionAck) base.requiresCompletionAck = true;
 
