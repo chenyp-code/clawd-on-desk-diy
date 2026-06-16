@@ -62,6 +62,26 @@ function contextUsageText(session) {
   return t("dashboardContextUsageUnknownLimit").replace("{used}", used);
 }
 
+function lastTurnUsageRowText(session) {
+  const usage = session && session.lastTurnUsage;
+  if (!usage || !Number.isFinite(Number(usage.total))) {
+    return `${t("dashboardThisTurnUsage")}: —`;
+  }
+  const total = formatTokenCount(usage.total);
+  const calls = Number.isFinite(Number(session.lastTurnCallCount)) ? session.lastTurnCallCount : 0;
+  return `${t("dashboardThisTurnUsage")}: ${total}  (${t("dashboardCallCount").replace("{n}", String(calls))})`;
+}
+
+function sessionTokenUsageRowText(session) {
+  const usage = session && session.sessionTokenUsage;
+  if (!usage || !Number.isFinite(Number(usage.total))) {
+    return `${t("dashboardSessionUsage")}: —`;
+  }
+  const total = formatTokenCount(usage.total);
+  const calls = Number.isFinite(Number(session.sessionCallCount)) ? session.sessionCallCount : 0;
+  return `${t("dashboardSessionUsage")}: ${total}  (${t("dashboardCallCount").replace("{n}", String(calls))})`;
+}
+
 function badgeLabel(badge) {
   const key = {
     running: "sessionBadgeRunning",
@@ -241,6 +261,14 @@ function appendContextUsage(main, session) {
   main.appendChild(createText("div", "context-usage-row", text));
 }
 
+function appendTurnUsage(main, session) {
+  main.appendChild(createText("div", "turn-usage-row", lastTurnUsageRowText(session)));
+}
+
+function appendSessionUsage(main, session) {
+  main.appendChild(createText("div", "session-usage-row", sessionTokenUsageRowText(session)));
+}
+
 function createIcon(session) {
   if (session.iconUrl) {
     const img = document.createElement("img");
@@ -300,6 +328,8 @@ function createCard(session, now) {
   appendPath(main, session);
   appendEvent(main, session, now);
   appendContextUsage(main, session);
+  appendTurnUsage(main, session);
+  appendSessionUsage(main, session);
   card.appendChild(main);
 
   const actions = document.createElement("div");
