@@ -3509,6 +3509,179 @@ describe("updateSession() — session token usage accumulator", () => {
     assert.strictEqual(session.lastAssistantEntryId, "e1");
     assert.strictEqual(session.sessionCallCount, 1);
   });
+
+  it("lastTurnUsage + lastTurnCallCount stay sticky when later events omit them (regression for state.js default=0 overwriting sticky value)", () => {
+    driveUsage({
+      id: "s1",
+      state: "working",
+      event: "Stop",
+      lastTurnUsage: { input: 1000, output: 500, cacheRead: 0, cacheCreation: 0, total: 1500 },
+      lastTurnCallCount: 45,
+    });
+    let session = api.sessions.get("s1");
+    assert.strictEqual(session.lastTurnCallCount, 45);
+    assert.strictEqual(session.lastTurnUsage.total, 1500);
+
+    // Follow-up event without per-turn fields. The destructuring default used
+    // to be 0, which beat the Number.isFinite() sticky guard and clobbered
+    // the previous 45 with 0. The fix changes the default to undefined.
+    api.updateSession("s1", "idle", "Notification", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+
+    session = api.sessions.get("s1");
+    assert.strictEqual(session.lastTurnCallCount, 45, "lastTurnCallCount must stay sticky");
+    assert.strictEqual(session.lastTurnUsage.total, 1500, "lastTurnUsage must stay sticky");
+  });
+
+  // ── Array-payload regression: multi-call-no-tool undercount ──────────────
+  // Pre-fix: the hook reported one last_assistant_entry_id per event. A turn
+  // with multiple tool-less assistant calls (A1 → A2 → A3 between two
+  // PostToolUse events) only contributed 1 to sessionCallCount, while
+  // lastTurnCallCount correctly reported 3. The fix has the hook send a full
+  // last_assistant_entries array and state.js iterate + merge each entry.
+
+  it("merges every entry in lastAssistantEntries — multi-call-no-tool undercount fix", () => {
+    api.updateSession("s1", "working", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastTurnUsage: { input: 300, output: 150, cacheRead: 0, cacheCreation: 0, total: 450 },
+      lastTurnCallCount: 3,
+      lastAssistantEntries: [
+        { id: "a1", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a2", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a3", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.sessionCallCount, 3, "all 3 calls must be merged");
+    assert.deepStrictEqual(session.sessionTokenUsage, {
+      input: 300,
+      output: 150,
+      cacheRead: 0,
+      cacheCreation: 0,
+      total: 450,
+    });
+    // Per-turn and cumulative should agree for the same turn.
+    assert.strictEqual(session.lastTurnUsage.total, session.sessionTokenUsage.total);
+    assert.strictEqual(session.lastTurnCallCount, session.sessionCallCount);
+  });
+
+  it("lastAssistantEntries dedups against the seen set — re-reporting is a no-op", () => {
+    api.updateSession("s1", "working", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntries: [
+        { id: "a1", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a2", usage: { input: 200, output: 80, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+    assert.strictEqual(api.sessions.get("s1").sessionCallCount, 2);
+
+    // Hook re-fires (e.g. Notification tail) reporting the same entries.
+    api.updateSession("s1", "working", "Notification", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntries: [
+        { id: "a1", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a2", usage: { input: 200, output: 80, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a3", usage: { input: 50, output: 25, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.sessionCallCount, 3, "only a3 is new");
+    assert.strictEqual(session.sessionTokenUsage.total, 100 + 50 + 200 + 80 + 50 + 25);
+  });
+
+  it("falls back to singular fields when lastAssistantEntries is empty/missing (backward compat)", () => {
+    api.updateSession("s1", "working", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntryId: "old-hook",
+      lastAssistantUsage: { input: 10, output: 5, cacheRead: 0, cacheCreation: 0 },
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.sessionCallCount, 1);
+    assert.strictEqual(session.sessionTokenUsage.total, 15);
+  });
+
+  // ── SessionStart boundary (Issue #2) ─────────────────────────────────────
+  // Pre-fix: SessionStart reset the seen set to empty, so a subsequent event
+  // could merge old transcript entries and pollute the new session's
+  // cumulative. The fix keeps seenAssistantEntryIds across SessionStart and
+  // the hook sends an empty array on SessionStart.
+
+  it("SessionStart does NOT merge old entries reported by a follow-up event", () => {
+    // Seed an existing session with prior accumulation.
+    api.updateSession("s1", "working", "Notification", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntries: [
+        { id: "old-1", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        { id: "old-2", usage: { input: 200, output: 80, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+    assert.strictEqual(api.sessions.get("s1").sessionCallCount, 2);
+
+    // SessionStart resets cumulative sums but the hook sends an empty array.
+    api.updateSession("s1", "thinking", "SessionStart", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+    });
+    const afterReset = api.sessions.get("s1");
+    assert.strictEqual(afterReset.sessionCallCount, 0, "SessionStart zeroes count");
+    assert.strictEqual(afterReset.sessionTokenUsage.total, 0, "SessionStart zeroes total");
+
+    // A defensive follow-up event with the old entries in last_assistant_entries
+    // (mimics an old-hook regression where the array still carries stale ids).
+    // The preserved seen set should filter them out — no double-count.
+    api.updateSession("s1", "working", "PreToolUse", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntries: [
+        { id: "old-1", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        { id: "old-2", usage: { input: 200, output: 80, cacheRead: 0, cacheCreation: 0 } },
+        { id: "new-1", usage: { input: 50, output: 25, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+
+    const session = api.sessions.get("s1");
+    assert.strictEqual(session.sessionCallCount, 1, "only new-1 is merged after reset");
+    assert.strictEqual(session.sessionTokenUsage.total, 75);
+  });
+
+  // Hook still sends the singular last_assistant_entry_id / last_assistant_usage
+  // snapshot on SessionStart (it's read from the live transcript, not the
+  // cumulative feed). The fallback that synthesizes a one-entry array from
+  // those fields must be disabled on SessionStart — otherwise the OLD
+  // transcript's last entry would be merged into the NEW session's cumulative.
+  it("SessionStart does NOT merge the singular lastAssistantEntryId/Usage snapshot", () => {
+    api.updateSession("s1", "working", "Notification", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntries: [
+        { id: "old-1", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+    assert.strictEqual(api.sessions.get("s1").sessionCallCount, 1);
+
+    // SessionStart as the hook actually sends it: singular fields populated,
+    // array absent.
+    api.updateSession("s1", "thinking", "SessionStart", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastAssistantEntryId: "old-1",
+      lastAssistantUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 },
+    });
+
+    const afterReset = api.sessions.get("s1");
+    assert.strictEqual(afterReset.sessionCallCount, 0, "SessionStart does not merge singular snapshot");
+    assert.strictEqual(afterReset.sessionTokenUsage.total, 0, "SessionStart cumulative stays 0");
+  });
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -3587,5 +3760,50 @@ describe("fireCompletionBubble — enriched payload", () => {
     assert.strictEqual(payload.lastTurnCallCount, null);
     assert.strictEqual(payload.sessionTokenUsage, null);
     assert.strictEqual(payload.sessionCallCount, null);
+  });
+
+  // Immediate-celebration path (debounceMs=0 default) calls fireCompletionBubble
+  // BEFORE sessions.set commits this Stop event's lastTurnCallCount /
+  // lastTurnUsage to the session. A Stop with no intermediate PostToolUse
+  // (text-only response: UserPromptSubmit → A1 → Stop) used to read the
+  // pre-Stop value (often 0) from sessions.get instead of the hook's fresh
+  // value, so the completion bubble showed "本轮 0" even though Claude made
+  // multiple LLM calls. The fix feeds the freshly-computed snapshot into the
+  // bubble helper.
+  it("immediate-celebration bubble reads the FRESH lastTurnCallCount from this Stop (not the pre-Stop session value)", () => {
+    // Simulate a session whose lastTurnCallCount was last set by an earlier
+    // UserPromptSubmit (count = 0, no assistant calls yet). Claude then makes
+    // 7 LLM calls in a text-only response and fires Stop without any
+    // intermediate PostToolUse to refresh the value.
+    api.sessions.set("s1", rawSession("working", {
+      sessionTitle: "text-only turn",
+      startedAt: Date.now() - 1000,
+      lastTurnUsage: null,
+      lastTurnCallCount: 0,
+      sessionTokenUsage: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
+      sessionCallCount: 0,
+    }));
+
+    api.updateSession("s1", "attention", "Stop", {
+      agentId: "claude-code",
+      cwd: "/tmp",
+      lastTurnUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0, total: 150 },
+      lastTurnCallCount: 7,
+      lastAssistantEntries: [
+        { id: "a1", usage: { input: 20, output: 10, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a2", usage: { input: 20, output: 10, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a3", usage: { input: 20, output: 10, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a4", usage: { input: 20, output: 10, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a5", usage: { input: 10, output: 5, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a6", usage: { input: 5, output: 3, cacheRead: 0, cacheCreation: 0 } },
+        { id: "a7", usage: { input: 5, output: 2, cacheRead: 0, cacheCreation: 0 } },
+      ],
+    });
+
+    assert.strictEqual(captured.length, 1, "showCompletionBubble should fire exactly once");
+    const payload = captured[0];
+    assert.strictEqual(payload.lastTurnCallCount, 7, "must read the hook's fresh value, not the pre-Stop 0");
+    assert.strictEqual(payload.lastTurnUsage.total, 150, "must read fresh lastTurnUsage");
+    assert.strictEqual(payload.sessionCallCount, 7, "cumulative must reflect all 7 calls");
   });
 });

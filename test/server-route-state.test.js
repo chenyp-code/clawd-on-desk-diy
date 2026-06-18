@@ -152,6 +152,7 @@ describe("server-route-state POST", () => {
         lastTurnCallCount: null,
         lastAssistantEntryId: null,
         lastAssistantUsage: null,
+        lastAssistantEntries: [],
         assistantLastOutput: null,
         assistantLastOutputTruncated: false,
         permissionSuspect: true,
@@ -303,6 +304,52 @@ describe("server-route-state POST", () => {
         res.calls.updateSession[0][3].lastAssistantEntryId,
         expected,
         `case input=${JSON.stringify(input)}`,
+      );
+    }
+  });
+
+  it("normalizes last_assistant_entries array — drops invalid entries, keeps valid {id,usage} pairs", async () => {
+    const res = await callStatePost(JSON.stringify({
+      state: "working",
+      session_id: "sid",
+      event: "PreToolUse",
+      last_assistant_entries: [
+        { id: "a1", usage: { input: 10, output: 5, cacheRead: 0, cacheCreation: 0 } },
+        // missing id → drop
+        { usage: { input: 1, output: 2, cacheRead: 3, cacheCreation: 4 } },
+        // missing usage → drop
+        { id: "a2" },
+        // usage with negative input → drop
+        { id: "a3", usage: { input: -1, output: 5, cacheRead: 0, cacheCreation: 0 } },
+        // valid
+        { id: "a4", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+        // non-object → drop
+        "string",
+        null,
+      ],
+    }));
+
+    assert.strictEqual(res.statusCode, 200);
+    const opts = res.calls.updateSession[0][3];
+    assert.deepStrictEqual(opts.lastAssistantEntries, [
+      { id: "a1", usage: { input: 10, output: 5, cacheRead: 0, cacheCreation: 0 } },
+      { id: "a4", usage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0 } },
+    ]);
+  });
+
+  it("returns empty array when last_assistant_entries is missing or non-array", async () => {
+    for (const input of [undefined, null, "string", 42, {}]) {
+      const res = await callStatePost(JSON.stringify({
+        state: "working",
+        session_id: "sid",
+        event: "PreToolUse",
+        ...(input !== undefined ? { last_assistant_entries: input } : {}),
+      }));
+      assert.strictEqual(res.statusCode, 200, `input=${JSON.stringify(input)}`);
+      assert.deepStrictEqual(
+        res.calls.updateSession[0][3].lastAssistantEntries,
+        [],
+        `input=${JSON.stringify(input)}`,
       );
     }
   });

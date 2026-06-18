@@ -105,21 +105,23 @@ function userEntryIsToolResultOnly(entry) {
   return content.every((part) => part && typeof part === "object" && part.type === "tool_result");
 }
 
-function extractClaudeLastTurnUsageFromEntries(entries, sessionId) {
-  if (!Array.isArray(entries)) return null;
-  let turnStart = -1;
+function findLastTurnStartIndex(entries, sessionId) {
   for (let i = entries.length - 1; i >= 0; i--) {
     const e = entries[i];
     if (!e || typeof e !== "object") continue;
     if (e.type !== "user") continue;
     if (userEntryIsToolResultOnly(e)) continue;
     if (!entryMatchesSession(e, sessionId)) continue;
-    turnStart = i;
-    break;
+    return i;
   }
-  if (turnStart < 0) return null;
+  return -1;
+}
 
-  let aggregate = null;
+// Single forward pass over the assistant entries after turnStart. Replaces
+// two separate scans (one for usage sum, one for call count) in the per-hook
+// hot path — each hook event hits this twice today.
+function collectLastTurnAssistantEntries(entries, turnStart, sessionId) {
+  const out = [];
   for (let i = turnStart + 1; i < entries.length; i++) {
     const e = entries[i];
     if (!e || typeof e !== "object") continue;
@@ -127,6 +129,19 @@ function extractClaudeLastTurnUsageFromEntries(entries, sessionId) {
     if (e.isApiErrorMessage === true) continue;
     if (!entryMatchesSession(e, sessionId)) continue;
     if (entryLooksSubagent(e)) continue;
+    out.push(e);
+  }
+  return out;
+}
+
+function extractClaudeLastTurnUsageFromEntries(entries, sessionId) {
+  if (!Array.isArray(entries)) return null;
+  const turnStart = findLastTurnStartIndex(entries, sessionId);
+  if (turnStart < 0) return null;
+
+  const assistants = collectLastTurnAssistantEntries(entries, turnStart, sessionId);
+  let aggregate = null;
+  for (const e of assistants) {
     const u = computeAssistantUsage(e);
     if (!u) continue;
     if (!aggregate) aggregate = { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 };
@@ -143,29 +158,9 @@ function extractClaudeLastTurnUsageFromEntries(entries, sessionId) {
 
 function countAssistantCallsInLastTurn(entries, sessionId) {
   if (!Array.isArray(entries)) return 0;
-  let turnStart = -1;
-  for (let i = entries.length - 1; i >= 0; i--) {
-    const e = entries[i];
-    if (!e || typeof e !== "object") continue;
-    if (e.type !== "user") continue;
-    if (!entryMatchesSession(e, sessionId)) continue;
-    if (userEntryIsToolResultOnly(e)) continue;
-    turnStart = i;
-    break;
-  }
+  const turnStart = findLastTurnStartIndex(entries, sessionId);
   if (turnStart < 0) return 0;
-
-  let count = 0;
-  for (let i = turnStart + 1; i < entries.length; i++) {
-    const e = entries[i];
-    if (!e || typeof e !== "object") continue;
-    if (e.type !== "assistant") continue;
-    if (e.isApiErrorMessage === true) continue;
-    if (!entryMatchesSession(e, sessionId)) continue;
-    if (entryLooksSubagent(e)) continue;
-    count += 1;
-  }
-  return count;
+  return collectLastTurnAssistantEntries(entries, turnStart, sessionId).length;
 }
 
 function findLastAssistantEntry(entries, sessionId) {
@@ -184,12 +179,40 @@ function findLastAssistantEntry(entries, sessionId) {
   return null;
 }
 
+// Returns EVERY assistant entry that has a usage block — including sidechain
+// / sub-agent — for state.js's session-cumulative accumulator. The hook
+// reports the whole array per event and state.js dedupes via the in-memory
+// `seenAssistantEntryIds` Set, so re-reporting the same entries on a later
+// event is a no-op. This is the fix for the "multiple assistant calls in a
+// single turn without tool boundaries" bug where only the last call's tokens
+// were merged (see state.js mergeSessionTokenUsage).
+//
+// Differs from collectLastTurnAssistantEntries in two ways:
+//   1. NO turn-boundary filter — emits entries from the entire transcript tail
+//      so a Stop event with no intermediate PostToolUse still picks them up.
+//   2. NO sidechain / sub-agent filter — cumulative counts all agent calls.
+function collectAllAssistantEntriesWithUsage(entries, sessionId) {
+  if (!Array.isArray(entries)) return [];
+  const out = [];
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i];
+    if (!e || typeof e !== "object") continue;
+    if (e.type !== "assistant") continue;
+    if (e.isApiErrorMessage === true) continue;
+    if (!entryMatchesSession(e, sessionId)) continue;
+    if (!computeAssistantUsage(e)) continue;
+    out.push(e);
+  }
+  return out;
+}
+
 module.exports = {
   CLAUDE_1M_CONTEXT_LIMIT,
   DEFAULT_CLAUDE_CONTEXT_LIMIT,
   computeAssistantUsage,
   computeClaudeUsageFromEntry,
   countAssistantCallsInLastTurn,
+  collectAllAssistantEntriesWithUsage,
   extractClaudeContextUsageFromEntries,
   extractClaudeLastTurnUsageFromEntries,
   findLastAssistantEntry,

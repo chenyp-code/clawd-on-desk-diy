@@ -12,10 +12,14 @@ const {
 const { resolveHookAgentId } = require("./server-agent-id");
 const { resolveCodexOfficialHookState } = require("./server-codex-official-turns");
 
-// /state POST body size cap. Raised from 1024 to 4096 to give new fields
-// (session_title) headroom on top of cwd / pid_chain / host / etc. Still a
-// local-only 127.0.0.1 endpoint - not an Internet DoS concern.
-const MAX_STATE_BODY_BYTES = 4096;
+// /state POST body size cap. Local-only 127.0.0.1 endpoint, not a real DoS
+// surface — the cap exists to keep a runaway hook from filling memory.
+// Raised from 4KB → 128KB to fit last_assistant_entries (Task 7 cumulative
+// payload): the hook emits one {id, usage} entry per assistant call in the
+// 256KB transcript tail, and a long session can easily push that to tens of
+// KB. Without this headroom the request 413s and the session never gets
+// registered, leaving the dashboard empty.
+const MAX_STATE_BODY_BYTES = 131072;
 const ASSISTANT_LAST_OUTPUT_MAX = 2400;
 
 function normalizeHwndString(value) {
@@ -73,6 +77,23 @@ function normalizeAssistantUsageShape(value) {
   // Optional: include `total` if the hook computed one (consumers may want it).
   const total = Number(value.total);
   if (Number.isFinite(total) && total >= 0) out.total = total;
+  return out;
+}
+
+// Validates the hook's last_assistant_entries array: each entry must have a
+// non-empty string id and a usage object with all four numeric fields. Bad
+// entries are silently dropped — state.js's merge is idempotent so a partial
+// payload is fine.
+function normalizeAssistantEntriesArray(value) {
+  if (!Array.isArray(value)) return [];
+  const out = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+    const id = typeof item.id === "string" && item.id ? item.id : null;
+    const usage = normalizeAssistantUsageShape(item.usage);
+    if (!id || !usage) continue;
+    out.push({ id, usage });
+  }
   return out;
 }
 
@@ -162,6 +183,7 @@ function handleStatePost(req, res, options) {
       const lastTurnUsage = normalizeAssistantUsageShape(data.last_turn_usage);
       const lastAssistantEntryId = (typeof data.last_assistant_entry_id === "string" && data.last_assistant_entry_id) ? data.last_assistant_entry_id : null;
       const lastAssistantUsage = normalizeAssistantUsageShape(data.last_assistant_usage);
+      const lastAssistantEntries = normalizeAssistantEntriesArray(data.last_assistant_entries);
       const assistantLastOutput = normalizeAssistantLastOutput(data.assistant_last_output);
       const assistantLastOutputTruncated = data.assistant_last_output_truncated === true;
       const permissionSuspect = data.permission_suspect === true;
@@ -279,6 +301,7 @@ function handleStatePost(req, res, options) {
             lastTurnCallCount,
             lastAssistantEntryId,
             lastAssistantUsage,
+            lastAssistantEntries,
             assistantLastOutput,
             assistantLastOutputTruncated,
             permissionSuspect,

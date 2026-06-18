@@ -8,6 +8,7 @@ const {
   extractClaudeContextUsageFromEntries,
   extractClaudeLastTurnUsageFromEntries,
   resolveClaudeContextLimit,
+  collectAllAssistantEntriesWithUsage,
 } = require("../hooks/context-usage");
 
 describe("Claude per-turn call counter", () => {
@@ -375,5 +376,35 @@ describe("findLastAssistantEntry (session-cumulative anchor)", () => {
     assert.strictEqual(findLastAssistantEntry([
       { type: "user", sessionId: "s1" },
     ], "s1"), null);
+  });
+});
+
+describe("collectAllAssistantEntriesWithUsage (session-cumulative source)", () => {
+  it("returns every assistant entry with usage, in chronological order, INCLUDING sidechain", () => {
+    const a1 = { type: "assistant", sessionId: "s1", uuid: "a1", message: { usage: { input_tokens: 1 } } };
+    const a2 = { type: "assistant", sessionId: "s1", uuid: "a2", message: { usage: { input_tokens: 2 } } };
+    const sub = { type: "assistant", sessionId: "s1", uuid: "sub", isSidechain: true, message: { usage: { input_tokens: 3 } } };
+    const out = collectAllAssistantEntriesWithUsage([a1, sub, a2], "s1");
+    assert.deepStrictEqual(out.map((e) => e.uuid), ["a1", "sub", "a2"]);
+  });
+
+  it("NO turn-boundary filter — emits entries even without a user entry before them", () => {
+    const a1 = { type: "assistant", sessionId: "s1", uuid: "a1", message: { usage: { input_tokens: 1 } } };
+    const out = collectAllAssistantEntriesWithUsage([a1], "s1");
+    assert.strictEqual(out.length, 1);
+  });
+
+  it("skips api-error and cross-session entries, and entries without usage", () => {
+    const ok = { type: "assistant", sessionId: "s1", uuid: "ok", message: { usage: { input_tokens: 1 } } };
+    const err = { type: "assistant", sessionId: "s1", uuid: "err", isApiErrorMessage: true, message: { usage: { input_tokens: 999 } } };
+    const other = { type: "assistant", sessionId: "other", uuid: "x", message: { usage: { input_tokens: 1 } } };
+    const noUsage = { type: "assistant", sessionId: "s1", uuid: "no", message: { content: [] } };
+    const out = collectAllAssistantEntriesWithUsage([err, other, noUsage, ok], "s1");
+    assert.deepStrictEqual(out.map((e) => e.uuid), ["ok"]);
+  });
+
+  it("returns empty array for empty / non-array input", () => {
+    assert.deepStrictEqual(collectAllAssistantEntriesWithUsage([], "s1"), []);
+    assert.deepStrictEqual(collectAllAssistantEntriesWithUsage(null, "s1"), []);
   });
 });

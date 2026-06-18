@@ -7,6 +7,8 @@ const crypto = require("crypto");
 const fs = require("fs");
 const { postStateToRunningServer, readHostPrefix } = require("./server-config");
 const {
+  computeAssistantUsage,
+  collectAllAssistantEntriesWithUsage,
   extractClaudeContextUsageFromEntries,
   extractClaudeLastTurnUsageFromEntries,
   countAssistantCallsInLastTurn,
@@ -435,21 +437,37 @@ function buildStateBody(event, payload, resolve) {
     transcriptEntries,
     payload.session_id || null,
   );
-  if (lastAssistant && lastAssistant.uuid && lastAssistant.message && lastAssistant.message.usage) {
-    body.last_assistant_entry_id = String(lastAssistant.uuid);
-    const u = lastAssistant.message.usage;
-    const input = Number(u.input_tokens) || 0;
-    const output = Number(u.output_tokens) || 0;
-    const cacheRead = Number(u.cache_read_input_tokens) || 0;
-    const cacheCreation = Number(u.cache_creation_input_tokens) || 0;
-    body.last_assistant_usage = {
-      input,
-      output,
-      cacheRead,
-      cacheCreation,
-      total: input + output + cacheRead + cacheCreation,
-      source: "claude",
-    };
+  if (lastAssistant && lastAssistant.uuid) {
+    const usage = computeAssistantUsage(lastAssistant);
+    if (usage) {
+      body.last_assistant_entry_id = String(lastAssistant.uuid);
+      body.last_assistant_usage = { ...usage, source: "claude" };
+    }
+  }
+  // Session-cumulative accumulator payload. Reports EVERY assistant entry
+  // with usage in the tail (including sidechain / sub-agent — see
+  // findLastAssistantEntry comment), and state.js dedupes via its
+  // seenAssistantEntryIds Set. This fixes the "multiple assistant calls in a
+  // single turn without tool boundaries" undercount — previously we only
+  // reported the most recent entry per event, so a turn with N tool-less
+  // calls between two PostToolUse events only contributed 1 to the session
+  // cumulative.
+  //
+  // SessionStart is a hard reset boundary — the new session's cumulative
+  // starts at 0 regardless of what the transcript still contains from the
+  // previous run. Sending an empty array here is what makes state.js's
+  // SessionStart reset actually take effect (Issue #2 in the v0.9.3 review).
+  if (event !== "SessionStart") {
+    const cumulativeEntries = collectAllAssistantEntriesWithUsage(
+      transcriptEntries,
+      payload.session_id || null,
+    );
+    if (cumulativeEntries.length > 0) {
+      body.last_assistant_entries = cumulativeEntries.map((entry) => {
+        const usage = computeAssistantUsage(entry);
+        return usage ? { id: String(entry.uuid), usage: { ...usage, source: "claude" } } : null;
+      }).filter(Boolean);
+    }
   }
   const sessionTitle =
     normalizeTitle(payload.session_title) ||

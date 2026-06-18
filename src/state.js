@@ -50,7 +50,7 @@ function resetSessionTokenUsage() {
   return {
     sessionTokenUsage: emptySessionTokenUsage(),
     sessionCallCount: 0,
-    seenAssistantEntryIds: [],
+    seenAssistantEntryIds: new Set(),
   };
 }
 
@@ -68,25 +68,34 @@ function isUsageObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
 }
 
+function seenIdsAsSet(value) {
+  if (value instanceof Set) return value;
+  if (Array.isArray(value)) return new Set(value);
+  return new Set();
+}
+
 function mergeSessionTokenUsage(state, entryId, usage) {
   const base = state && typeof state === "object" ? state : resetSessionTokenUsage();
   if (typeof entryId !== "string" || !entryId) return base;
-  const seen = Array.isArray(base.seenAssistantEntryIds) ? base.seenAssistantEntryIds : [];
-  if (seen.includes(entryId)) return base;
+  const seen = seenIdsAsSet(base.seenAssistantEntryIds);
+  if (seen.has(entryId)) return base;
   const u = normalizeAssistantUsageForMerge(usage);
   if (!u) return base;
   const prev = base.sessionTokenUsage && typeof base.sessionTokenUsage === "object"
     ? base.sessionTokenUsage : emptySessionTokenUsage();
+  const nextTotal = prev.input + prev.output + prev.cacheRead + prev.cacheCreation
+    + u.input + u.output + u.cacheRead + u.cacheCreation;
+  seen.add(entryId);
   return {
     sessionTokenUsage: {
       input: prev.input + u.input,
       output: prev.output + u.output,
       cacheRead: prev.cacheRead + u.cacheRead,
       cacheCreation: prev.cacheCreation + u.cacheCreation,
-      total: prev.input + prev.output + prev.cacheRead + prev.cacheCreation + u.input + u.output + u.cacheRead + u.cacheCreation,
+      total: nextTotal,
     },
     sessionCallCount: (base.sessionCallCount || 0) + 1,
-    seenAssistantEntryIds: seen.concat([entryId]),
+    seenAssistantEntryIds: seen,
   };
 }
 
@@ -1111,9 +1120,17 @@ function clearAllCompletionDebounces() {
 // BEFORE sessions.set, so sessions.get(sessionId) would return null there.
 // startedAt anchors the per-turn duration chip; null/undefined yields no
 // durationMs in the payload and the renderer hides the chip.
-function fireCompletionBubble(sessionId, sessionTitle, startedAt) {
+// sessionPreview is an optional override for the per-turn / cumulative stats
+// read from the session. The immediate-celebration path passes the freshly
+// computed values (existing + this Stop's lastTurnUsage / lastTurnCallCount /
+// sessionTokenUsage / sessionCallCount) because sessions.set for THIS event
+// hasn't run yet — otherwise the bubble shows the previous event's stats and
+// the user sees "本轮 0" for a turn whose last event before Stop was a
+// UserPromptSubmit. promoteCompletion leaves it undefined; by then sessions.set
+// has already run and sessions.get is the authoritative view.
+function fireCompletionBubble(sessionId, sessionTitle, startedAt, sessionPreview) {
   if (typeof ctx.showCompletionBubble !== "function") return;
-  const session = sessions.get(sessionId);
+  const session = sessionPreview || sessions.get(sessionId);
   const durationMs = Number.isFinite(startedAt) ? Math.max(0, Date.now() - startedAt) : null;
   try {
     ctx.showCompletionBubble({
@@ -1199,9 +1216,10 @@ function updateSession(sessionId, state, event, opts = {}) {
     sessionCronsCount = 0,
     stopHookActive = false,
     lastTurnUsage = null,
-    lastTurnCallCount = 0,
+    lastTurnCallCount = undefined,
     lastAssistantEntryId = null,
     lastAssistantUsage = null,
+    lastAssistantEntries = null,
   } = opts;
   if (startupRecoveryActive) {
     startupRecoveryActive = false;
@@ -1344,14 +1362,20 @@ function updateSession(sessionId, state, event, opts = {}) {
   // Session-cumulative accumulator. SessionStart is the canonical reset
   // boundary — when Claude Code restarts a session the cumulative totals
   // from the previous run must not bleed into the new one.
+  //
+  // seenAssistantEntryIds is intentionally NOT cleared on SessionStart. The
+  // hook sends an empty `last_assistant_entries` array on SessionStart (so
+  // nothing gets merged), but the seen set from any prior run on this same
+  // session id is preserved as a defensive backstop — if a future hook
+  // change forgets the SessionStart guard, the old entry ids won't be merged
+  // twice into the new session's cumulative.
   let accSessionTokenUsage;
   let accSessionCallCount;
   let accSeenAssistantEntryIds;
   if (event === "SessionStart") {
-    const reset = resetSessionTokenUsage();
-    accSessionTokenUsage = reset.sessionTokenUsage;
-    accSessionCallCount = reset.sessionCallCount;
-    accSeenAssistantEntryIds = reset.seenAssistantEntryIds;
+    accSessionTokenUsage = emptySessionTokenUsage();
+    accSessionCallCount = 0;
+    accSeenAssistantEntryIds = existing ? seenIdsAsSet(existing.seenAssistantEntryIds) : new Set();
   } else {
     accSessionTokenUsage = existing && existing.sessionTokenUsage
       ? existing.sessionTokenUsage
@@ -1359,19 +1383,43 @@ function updateSession(sessionId, state, event, opts = {}) {
     accSessionCallCount = existing && Number.isFinite(existing.sessionCallCount)
       ? existing.sessionCallCount
       : 0;
-    accSeenAssistantEntryIds = existing && Array.isArray(existing.seenAssistantEntryIds)
-      ? existing.seenAssistantEntryIds
-      : [];
+    accSeenAssistantEntryIds = existing ? seenIdsAsSet(existing.seenAssistantEntryIds) : new Set();
   }
-  if (srcLastAssistantEntryId && srcLastAssistantUsage && isUsageObject(srcLastAssistantUsage)) {
+  // Merge every entry reported by the hook. The hook sends a full
+  // last_assistant_entries array (id + usage) covering the entire transcript
+  // tail, and mergeSessionTokenUsage dedupes via the seen set — so
+  // re-reporting an already-merged entry is a no-op. This replaces the old
+  // "one entry per event" path that undercounted any turn with multiple
+  // assistant calls between two PostToolUse events (e.g. tool-less multi-step
+  // reasoning: A1 → A2 → A3 only emits a Stop, used to contribute 1 to
+  // sessionCallCount, now contributes 3).
+  //
+  // SessionStart is a hard reset boundary: the hook does NOT send the
+  // cumulative array (it skips emit on SessionStart, see clawd-hook.js), but
+  // it DOES still send the singular last_assistant_entry_id / last_assistant_usage
+  // snapshot. The singular fields are read from the SAME transcript the old
+  // run wrote to, so synthesizing a one-entry array from them on SessionStart
+  // would merge old-run data into the new session's cumulative. Guard the
+  // fallback to non-SessionStart events; the singular fields themselves are
+  // also nulled above for SessionStart.
+  const entriesToMerge = event === "SessionStart"
+    ? []
+    : (Array.isArray(lastAssistantEntries) && lastAssistantEntries.length > 0
+        ? lastAssistantEntries
+        : (lastAssistantEntryId && lastAssistantUsage && isUsageObject(lastAssistantUsage)
+            ? [{ id: lastAssistantEntryId, usage: lastAssistantUsage }]
+            : []));
+  for (const entry of entriesToMerge) {
+    if (!entry || typeof entry.id !== "string" || !entry.id) continue;
+    if (!entry.usage || !isUsageObject(entry.usage)) continue;
     const acc = mergeSessionTokenUsage(
       {
         sessionTokenUsage: accSessionTokenUsage,
         sessionCallCount: accSessionCallCount,
         seenAssistantEntryIds: accSeenAssistantEntryIds,
       },
-      srcLastAssistantEntryId,
-      srcLastAssistantUsage,
+      entry.id,
+      entry.usage,
     );
     accSessionTokenUsage = acc.sessionTokenUsage;
     accSessionCallCount = acc.sessionCallCount;
@@ -1436,8 +1484,31 @@ function updateSession(sessionId, state, event, opts = {}) {
       // would briefly flip session.state to "idle" and re-emit the snapshot, so we
       // call the bubble helper directly to keep the snapshot stable while still
       // surfacing the completion toast. Pass srcSessionTitle explicitly because
-      // sessions.set for this brand-new event hasn't run yet.
-      fireCompletionBubble(sessionId, srcSessionTitle, srcStartedAt);
+      // sessions.set for this brand-new event hasn't run yet. The stats preview
+      // (`existing + the new srcLastTurnUsage / srcLastTurnCallCount /
+      // accSessionTokenUsage / accSessionCallCount`) mirrors what sessions.set
+      // at L1609 will commit, so the bubble reads this Stop's values instead of
+      // the stale pre-Stop snapshot (which would otherwise show 0 for a turn
+      // whose last event before Stop was a UserPromptSubmit with no assistant
+      // calls yet).
+      const hookSentFreshStats =
+        lastTurnUsage !== null
+        || Number.isFinite(Number(lastTurnCallCount))
+        || (Array.isArray(lastAssistantEntries) && lastAssistantEntries.length > 0);
+      if (hookSentFreshStats) {
+        const statsPreview = Object.assign(
+          existing ? { ...existing } : {},
+          {
+            lastTurnUsage: srcLastTurnUsage,
+            lastTurnCallCount: srcLastTurnCallCount,
+            sessionTokenUsage: accSessionTokenUsage,
+            sessionCallCount: accSessionCallCount,
+          },
+        );
+        fireCompletionBubble(sessionId, srcSessionTitle, srcStartedAt, statsPreview);
+      } else {
+        fireCompletionBubble(sessionId, srcSessionTitle, srcStartedAt);
+      }
     }
   }
 

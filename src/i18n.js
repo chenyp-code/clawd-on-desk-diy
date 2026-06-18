@@ -553,7 +553,7 @@ const i18n = {
     sessionHudContextUsageTooltipUnknownLimit: "컨텍스트: {used} tokens",
     sessionHudActive: "활성 {n}개",
     sessionHudOtherActive: "기타 활성 {n}개",
-    sessionHudLast: "最近",
+    sessionHudLast: "최근",
     hudThisTurnChip: "이번 턴 {total} · {n}회",
     hudSessionChip: "세션 누적 {total} · {n}회",
     usageStatLabel: "입력 {input} · 출력 {output} · 캐시 {cache}",

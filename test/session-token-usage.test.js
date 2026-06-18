@@ -14,7 +14,7 @@ describe("session token usage accumulator", () => {
     assert.deepStrictEqual(r, {
       sessionTokenUsage: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
       sessionCallCount: 0,
-      seenAssistantEntryIds: [],
+      seenAssistantEntryIds: new Set(),
     });
   });
 
@@ -24,7 +24,7 @@ describe("session token usage accumulator", () => {
     assert.deepStrictEqual(next, {
       sessionTokenUsage: { input: 100, output: 50, cacheRead: 0, cacheCreation: 0, total: 150 },
       sessionCallCount: 1,
-      seenAssistantEntryIds: ["id-1"],
+      seenAssistantEntryIds: new Set(["id-1"]),
     });
   });
 
