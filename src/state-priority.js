@@ -18,6 +18,7 @@ const STATE_PRIORITY = Object.freeze({
   thinking: 2,
   idle: 1,
   walking: 0.5,
+  roam: 1,
   sleeping: 0,
 });
 

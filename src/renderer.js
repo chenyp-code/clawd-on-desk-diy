@@ -828,7 +828,14 @@ function swapToFile(file, state, useObjectChannel, options = {}) {
     };
 
     next.addEventListener("load", swap, { once: true });
-    next.data = url;
+    // Same cache-bust as the <img> channel below. Chromium reuses the SVG
+    // document (and its CSS animation timeline) across loads of the same
+    // URL on the object channel too, so one-shot animations for scripted /
+    // eye-tracking SVGs would stall on their last frame on re-entry. A fresh
+    // query each swap forces a fresh document. Bookkeeping (currentDisplayed
+    // /pendingAssetUrl) stays keyed on the base `url`, not the busted one.
+    const cacheBust = `${Date.now()}-${++_imgCacheBustSeq}`;
+    next.data = `${url}${url.includes("?") ? "&" : "?"}_t=${cacheBust}`;
     container.appendChild(next);
     pendingNext = next;
     scheduleSwapVisibilityRescue(swapToken, file, state);
@@ -917,8 +924,16 @@ window.electronAPI.onStateChange((state, svg) => {
   // swapToFile() with the matching state for eye-tracking decisions.
   currentState = state;
   noteLowPowerActivity();
-  if (state !== "walking") {
+if (state !== "walking") {
     walkingDirection = null;
+  }
+
+  // ── Roam state: add walk animation class for visual movement ──
+  // When the pet is roaming (free-roam mode), add a CSS animation to simulate
+  // walking even if the theme doesn't have a dedicated roam SVG. The animation
+  // is a subtle horizontal bob that makes the idle SVG look like it's walking.
+  if (container) {
+    container.classList.toggle("roam-walk", state === "roam");
   }
   if (!shouldUseCloudlingPointerBridge(state, svg)) {
     clearCloudlingPointerBridge();

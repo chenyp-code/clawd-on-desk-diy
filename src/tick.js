@@ -250,6 +250,13 @@ function runMainTickOnce() {
 
     if (!idleNow && !miniIdleNow) return nextDelay();
 
+    // ── Free roam: cancel roaming when mouse moves ──
+    if (ctx.roam) {
+      if (moved && ctx.roam.enabled) {
+        ctx.roam.cancelRoam();
+      }
+    }
+
     // ── Below: idle or mini-idle logic ──
     // Normal idle: mouse idle detection + sleep sequence
     if (idleNow) {
@@ -337,6 +344,9 @@ function runMainTickOnce() {
         ctx.roamingController.start();
         return nextDelay();
       }
+
+      // Free roam tick: wander around when idle long enough
+      if (ctx.roam) ctx.roam.tick();
     }
 
     const trackEyesNow = (idleNow && ctx.currentSvg === SVG_IDLE_FOLLOW && !isMouseIdle) || miniIdleNow;
