@@ -113,6 +113,23 @@ describe("RoamingController lifecycle", () => {
     assert.strictEqual(ctrl.isActive(), false);
   });
 
+  it("cancel resolves to idle (not stale 'walking') so tick can restart it later", () => {
+    // Mirrors state.js's contract: resolveDisplayState returns "walking"
+    // while the controller is active and fromSessions ("idle") once inactive.
+    // Without this, cancel() pins the state at "walking" with an inactive
+    // controller and tick.js never resumes roaming after a drag.
+    const { ctrl, ctx } = loadController();
+    ctx.resolveDisplayState = () => (ctrl.isActive() ? "walking" : "idle");
+    ctrl.start();
+    ctrl.cancel();
+    const lastApplyState = ctx.applyState.mock.calls[ctx.applyState.mock.calls.length - 1];
+    assert.strictEqual(
+      lastApplyState.arguments[0],
+      "idle",
+      "cancel() must resolve to the post-cancel display state, not the stale 'walking'",
+    );
+  });
+
   it("start is no-op when getIdleRoamingEnabled returns false", () => {
     const { ctrl, ctx } = loadController({ prefs: { idleRoamingEnabled: false } });
     ctrl.start();

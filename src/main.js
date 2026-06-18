@@ -1382,7 +1382,7 @@ const _tickCtx = {
   get sessions() { return _state.getSessions ? _state.getSessions() : new Map(); },
   get doNotDisturb() { return doNotDisturb; },
   getIdleRoamingEnabled: () => !!_settingsController.getSnapshot().idleRoamingEnabled,
-  resolveDisplayState: () => _state.getCurrentState ? _state.getCurrentState() : "idle",
+  resolveDisplayState: () => resolveDisplayState(),
   get roamingController() { return _roamingController; },
 };
 const _tick = require("./tick")(_tickCtx);
@@ -1412,7 +1412,7 @@ function buildRoamingController() {
     get doNotDisturb() { return doNotDisturb; },
     get idlePaused() { return idlePaused; },
     getIdleRoamingEnabled: () => !!_settingsController.getSnapshot().idleRoamingEnabled,
-    resolveDisplayState: () => _state.getCurrentState ? _state.getCurrentState() : "idle",
+    resolveDisplayState: () => resolveDisplayState(),
     getPetWindowBounds,
     getNearestWorkArea: (x, y) => {
       try {
