@@ -1311,6 +1311,7 @@ const _completionBubbleCtx = {
   get bubbleFollowPet() { return bubbleFollowPet; },
   get petHidden() { return petWindowRuntime.isPetHidden(); },
   get miniMode() { return _mini.getMiniMode(); },
+  get doNotDisturb() { return doNotDisturb; },
   getBubblePolicy: getRuntimeBubblePolicy,
   getPendingPermissions: () => pendingPermissions,
   getUpdateBubble: () => (_updateBubble && typeof _updateBubble.getBubbleWindow === "function")

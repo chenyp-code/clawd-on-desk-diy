@@ -238,10 +238,10 @@ function initUpdater(ctx, deps = {}) {
 
   // Called by main.js when the user leaves DND or exits mini mode. If we
   // discovered a new version during silent mode and stashed a deferred
-  // prompt, run it now — but only if both silent modes are actually off.
-  // Otherwise (e.g. DND off but still in mini, or vice versa) we are still
-  // in silent territory and the prompt has to keep waiting for the second
-  // exit.
+  // prompt, run it now — but only if silent mode is still actually active.
+  // Silent mode is now "DND && !mini" (see isSilentMode), so the only case
+  // where a deferred prompt is still pending here is DND-alone with no mini
+  // — exiting DND clears the silent flag and the bubble fires.
   function onSilentModeExit() {
     if (!pendingPromptDeferred) return;
     if (isSilentMode()) return;
@@ -320,8 +320,16 @@ function initUpdater(ctx, deps = {}) {
     if (typeof ctx.hideUpdateBubble === "function") ctx.hideUpdateBubble();
   }
 
+  // Mini mode is a positioning state ("pet is at the screen edge, possibly
+  // sleeping"), not a silence preference. Per the "petHidden ≠ DND" rule in
+  // AGENTS.md, visibility/positioning states don't suppress notifications:
+  //   - mini alone            → bubble fires (user wants updates at the edge)
+  //   - DND alone             → silent, defer (DND is the actual silence pref)
+  //   - mini + DND (mini-sleep) → bubble fires (mini mode overrides DND; the
+  //     user tucked the pet at the edge precisely so they could be notified
+  //     while sleeping — deferring indefinitely here is the bug we fixed).
   function isSilentMode() {
-    return !!ctx.doNotDisturb || !!ctx.miniMode;
+    return !!ctx.doNotDisturb && !ctx.miniMode;
   }
 
   function dismissToResolvedState() {

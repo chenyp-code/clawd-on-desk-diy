@@ -261,7 +261,11 @@ describe("updater visual flow", () => {
     assert.ok(applied.some((entry) => entry.state === "notification" && entry.svgOverride == null));
   });
 
-  it("does not flash available overlay for non-manual checks during mini mode", async () => {
+  it("surfaces available overlay for non-manual checks during mini mode (mini is NOT silent)", async () => {
+    // Mini mode is a positioning state, not a silence preference (see
+    // isSilentMode in src/updater.js — DND && !mini). The auto-updater
+    // should still surface the available overlay + bubble while mini is on,
+    // so the user is notified even with the pet tucked at the edge.
     const visualStates = [];
     const bubbles = [];
     const handlers = {};
@@ -307,16 +311,16 @@ describe("updater visual flow", () => {
     await updater.checkForUpdates(false);
     await handlers["update-available"]({ version: "0.5.11" });
 
-    assert.deepStrictEqual(visualStates, ["checking", null]);
-    assert.deepStrictEqual(bubbles.map((bubble) => bubble.mode), ["checking"]);
-    assert.strictEqual(hideCount, 1);
+    assert.deepStrictEqual(visualStates, ["checking", "available", null]);
+    assert.deepStrictEqual(bubbles.map((bubble) => bubble.mode), ["checking", "available"]);
   });
 
-  it("rebuilds git-mode menus after silent available check returns to idle", async () => {
+  it("rebuilds git-mode menus after available check surfaces overlay during mini mode", async () => {
+    // Same as above for the git-mode path: mini mode is NOT silent, so the
+    // available overlay + bubble fire normally. Menu badge ends cleared.
     const visualStates = [];
     const bubbles = [];
     const menuLabels = [];
-    let hideCount = 0;
     let overlayState = null;
     let updater;
     const ctx = makeCtx({
@@ -333,7 +337,7 @@ describe("updater visual flow", () => {
         bubbles.push(payload);
         return payload.defaultAction || null;
       },
-      hideUpdateBubble: () => { hideCount += 1; },
+      hideUpdateBubble: () => {},
     });
     const stdoutByArgs = new Map([
       ["rev-parse --abbrev-ref HEAD", "main"],
@@ -360,9 +364,8 @@ describe("updater visual flow", () => {
 
     await updater.checkForUpdates(false);
 
-    assert.deepStrictEqual(visualStates, ["checking", null]);
-    assert.deepStrictEqual(bubbles.map((bubble) => bubble.mode), ["checking"]);
-    assert.strictEqual(hideCount, 1);
+    assert.deepStrictEqual(visualStates, ["checking", "available", null]);
+    assert.deepStrictEqual(bubbles.map((bubble) => bubble.mode), ["checking", "available"]);
     assert.strictEqual(menuLabels[menuLabels.length - 1], "Check for Updates");
   });
 
@@ -1416,7 +1419,30 @@ describe("updater #329 background scheduler", () => {
     assert.strictEqual(bubbles.length, 1);
   });
 
-  it("onSilentModeExit: still in mini after DND off → defers again, no premature bubble", async () => {
+  it("handlePendingVersion: mini mode is NOT silent — bubble fires immediately", async () => {
+    const prefs = makePrefs();
+    const bubbles = [];
+    const ctx = makeCtxWithPrefs(prefs, {
+      miniMode: true,
+      showUpdateBubble: (payload) => {
+        bubbles.push(payload);
+        return Promise.resolve({ action: "later", source: "user" });
+      },
+    });
+    const updater = initUpdater(ctx, makeDeps({
+      app: { isPackaged: true, getVersion: () => "0.5.0", relaunch() {}, exit() {} },
+    }));
+
+    await updater.handlePendingVersion("v0.9.0", { tag_name: "v0.9.0" }, { trigger: "scheduled" });
+    assert.strictEqual(bubbles.length, 1, "mini alone must NOT defer the bubble");
+  });
+
+  it("handlePendingVersion: mini-sleep (mini + DND) fires bubble immediately", async () => {
+    // AGENTS.md "petHidden ≠ DND" rule applied to mini mode: mini mode is a
+    // positioning state ("pet tucked at the edge, possibly sleeping"), not a
+    // silence preference. In mini-sleep the user explicitly tucked the pet at
+    // the edge so they would be notified while sleeping — deferring the
+    // bubble indefinitely is the bug we fixed.
     const prefs = makePrefs();
     const bubbles = [];
     const ctx = makeCtxWithPrefs(prefs, {
@@ -1432,21 +1458,33 @@ describe("updater #329 background scheduler", () => {
     }));
 
     await updater.handlePendingVersion("v0.9.0", { tag_name: "v0.9.0" }, { trigger: "scheduled" });
-    assert.strictEqual(bubbles.length, 0);
+    assert.strictEqual(bubbles.length, 1, "mini-sleep must surface the bubble (mini overrides DND)");
+  });
 
-    // DND off but mini still on — silent mode still active.
+  it("handlePendingVersion: DND-only still defers, onSilentModeExit fires bubble", async () => {
+    // Regression guard for the DND contract — DND alone is still silent.
+    const prefs = makePrefs();
+    const bubbles = [];
+    const ctx = makeCtxWithPrefs(prefs, {
+      doNotDisturb: true,
+      showUpdateBubble: (payload) => {
+        bubbles.push(payload);
+        return Promise.resolve({ action: "later", source: "user" });
+      },
+    });
+    const updater = initUpdater(ctx, makeDeps({
+      app: { isPackaged: true, getVersion: () => "0.5.0", relaunch() {}, exit() {} },
+    }));
+
+    await updater.handlePendingVersion("v0.9.0", { tag_name: "v0.9.0" }, { trigger: "scheduled" });
+    assert.strictEqual(bubbles.length, 0, "DND-only defers until DND exits");
+    assert.strictEqual(prefs.snapshot().pendingUpdateVersion, "v0.9.0");
+
     ctx.doNotDisturb = false;
     updater.onSilentModeExit();
     await new Promise((r) => setImmediate(r));
     await new Promise((r) => setImmediate(r));
-    assert.strictEqual(bubbles.length, 0, "bubble should not fire while still in mini mode");
-
-    // Now exit mini too — second silent-exit call fires the bubble.
-    ctx.miniMode = false;
-    updater.onSilentModeExit();
-    await new Promise((r) => setImmediate(r));
-    await new Promise((r) => setImmediate(r));
-    assert.strictEqual(bubbles.length, 1);
+    assert.strictEqual(bubbles.length, 1, "exiting DND fires the deferred bubble");
   });
 
   it("handlePendingVersion: already-dismissed version → no bubble but pending set", async () => {

@@ -225,6 +225,15 @@ module.exports = function initUpdateBubble(ctx) {
     return bubble;
   }
 
+  // Resolve bubbleFollowPet against petHidden: when the pet is out of sight
+  // the user can't anchor a bubble to it, so we drop back to bottom-right
+  // corner placement. Without this, hidden-pet + bubbleFollowPet=true would
+  // pop the toast at the pet's last visible position with no pet in sight to
+  // explain why it's there.
+  function isFollowingPet() {
+    return !!ctx.bubbleFollowPet && !ctx.petHidden;
+  }
+
   function computeBounds(scale = getTextScale()) {
     if (!ctx.win || ctx.win.isDestroyed()) return null;
     const petBounds = ctx.getPetWindowBounds();
@@ -233,13 +242,14 @@ module.exports = function initUpdateBubble(ctx) {
     const wa = ctx.getNearestWorkArea(cx, cy);
     const height = scaleHeight(measuredHeight || estimateHeight(activePayload), scale);
     const reservedHeight = getPermissionStackHeight();
-    const anchorRect = ctx.bubbleFollowPet && typeof ctx.getUpdateBubbleAnchorRect === "function"
+    const followPet = isFollowingPet();
+    const anchorRect = followPet && typeof ctx.getUpdateBubbleAnchorRect === "function"
       ? ctx.getUpdateBubbleAnchorRect(petBounds)
       : null;
-    const hitRect = ctx.bubbleFollowPet ? ctx.getHitRectScreen(petBounds) : null;
+    const hitRect = followPet ? ctx.getHitRectScreen(petBounds) : null;
 
     return computeUpdateBubbleBounds({
-      bubbleFollowPet: ctx.bubbleFollowPet,
+      bubbleFollowPet: followPet,
       width: Math.min(scaleWidth(WIDTH, scale), Math.floor(wa.width * MAX_WORK_AREA_WIDTH_RATIO)),
       edgeMargin: Math.round(EDGE_MARGIN * scale),
       gap: Math.round(GAP * scale),
@@ -265,10 +275,11 @@ module.exports = function initUpdateBubble(ctx) {
 
   function syncVisibility() {
     if (!bubble || bubble.isDestroyed()) return;
-    if (ctx.petHidden) {
-      bubble.hide();
-      return;
-    }
+    // petHidden used to retract this bubble here. That diverged from the
+    // "petHidden ≠ DND" rule in AGENTS.md (which kept NEW permission bubbles
+    // showing for that exact reason: the user still wants to see agent
+    // activity even when the pet is out of sight). Drop the hide so update
+    // toasts reach the user during petHidden too.
     bubble.showInactive();
     keepOutOfTaskbar(bubble);
     if (isMac) deferMacFloatingVisibility(ctx, bubble);

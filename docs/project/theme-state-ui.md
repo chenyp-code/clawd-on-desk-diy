@@ -21,7 +21,8 @@ This document holds the state machine, theme system, UI runtime, and platform ca
 - 一次性状态：`attention/error/sweeping/notification/carrying` 显示后自动回退（`AUTO_RETURN_MS`）
 - 睡眠序列：20s 鼠标静止 → idle-look → 60s → yawning(3s) → dozing → 10min → collapsing(0.8s) → sleeping；鼠标移动触发 waking(1.5s) → 恢复
 - DND 模式：跳过 dozing，直接 yawning → collapsing → sleeping；同时屏蔽 hook 事件
-- 隐藏桌宠（petHidden，入口：托盘 / 右键菜单 / 快捷键）：语义是「看不见宠物」而非免打扰——隐藏时收起宠物、Session HUD、update bubble 和当时 pending 的权限气泡（恢复显示时回来），但隐藏期间新到的权限请求仍照常弹气泡，这是有意设计、不要当 bug 修；要连权限气泡都静默是 DND 的职责（它有回终端确认的 fallback）。petHidden 不持久化，重启恢复显示
+- mini-sleep（mini + DND）= mini 模式 + DND：宠物睡在屏幕边缘；**mini 是定位状态不是静默状态**，所以更新气泡和完成气泡都照常弹（updater `isSilentMode() = DND && !mini`、completion-bubble `syncVisibility` 现在完全不检查 mini——按 `bubble-policy.js` 的 `bypassDnd: true` 一律显示，连 mini-alone 也不压；mini 入场过渡由 `miniTransitioning` 通过 bubble 生命周期管）。纯 DND（不带 mini）依然静默、由 `onSilentModeExit()` 在 DND 退出时拉起 deferred bubble
+- 隐藏桌宠（petHidden，入口：托盘 / 右键菜单 / 快捷键）：语义是「看不见宠物」而非免打扰——隐藏时收起宠物、Session HUD 和当时 pending 的气泡（通过 `hideFloatingSurfacesForPet`），但隐藏期间新到的权限请求、更新提示、完成提示照常弹气泡，这是有意设计、不要当 bug 修。**隐藏期间 `bubbleFollowPet` 配置被忽略**，所有气泡落到 work-area 右下角（避免锚到桌宠最后位置造成视觉错位）。要连气泡都静默是 DND 的职责（它有回终端确认的 fallback）。petHidden 不持久化，重启恢复显示
 - working 子动画：Clawd 主题为 1 个会话 → typing，2 个 → headphones groove，3+ → building；Calico / Cloudling 仍为 typing / juggling / building
 - juggling 子动画：1 个 subagent → juggling，2+ → conducting
 

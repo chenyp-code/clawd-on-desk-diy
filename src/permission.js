@@ -552,6 +552,14 @@ function getAnchorWorkArea(petBounds) {
   return ctx.getNearestWorkArea(cx, cy);
 }
 
+// Resolve bubbleFollowPet against petHidden: when the pet is out of sight
+// the user can't anchor a bubble to it, so we drop back to bottom-right
+// corner placement. Mirrors the override in update-bubble.js and
+// completion-bubble.js so all three bubble types behave identically.
+function isFollowingPet() {
+  return !!ctx.bubbleFollowPet && !ctx.petHidden;
+}
+
 function repositionBubbles() {
   // Thin wrapper around computeBubbleStackLayout (top of file). All the
   // geometry lives there so it can be unit-tested without Electron windows.
@@ -562,7 +570,8 @@ function repositionBubbles() {
   const petBounds = ctx.getPetWindowBounds();
   const wa = getAnchorWorkArea(petBounds);
   const bw = getBubbleWidth(scale, wa);
-  const hitRect = ctx.bubbleFollowPet ? ctx.getHitRectScreen(petBounds) : null;
+  const followPet = isFollowingPet();
+  const hitRect = followPet ? ctx.getHitRectScreen(petBounds) : null;
 
   const layoutPermissions = pendingPermissions.filter((perm) => !isHardwareBuddyTestPermission(perm));
   const bubbleHeights = layoutPermissions.map(perm =>
@@ -577,7 +586,7 @@ function repositionBubbles() {
   );
 
   const bounds = computeBubbleStackLayout({
-    followPet: !!ctx.bubbleFollowPet,
+    followPet,
     bubbleHeights,
     bubbleWidth: bw,
     margin,

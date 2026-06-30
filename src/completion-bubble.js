@@ -234,6 +234,15 @@ module.exports = function initCompletionBubble(ctx) {
     return bubble;
   }
 
+  // Resolve bubbleFollowPet against petHidden: when the pet is out of sight
+  // the user can't anchor a bubble to it, so we drop back to bottom-right
+  // corner placement. Without this, hidden-pet + bubbleFollowPet=true would
+  // pop the toast at the pet's last visible position with no pet in sight to
+  // explain why it's there.
+  function isFollowingPet() {
+    return !!ctx.bubbleFollowPet && !ctx.petHidden;
+  }
+
   function computeBounds() {
     if (!ctx.win || ctx.win.isDestroyed()) return null;
     const petBounds = ctx.getPetWindowBounds();
@@ -242,13 +251,14 @@ module.exports = function initCompletionBubble(ctx) {
     const wa = ctx.getNearestWorkArea(cx, cy);
     const height = measuredHeight || estimateHeight(activePayload);
     const reservedHeight = getPermissionStackHeight() + getUpdateBubbleHeight() + GAP;
-    const anchorRect = ctx.bubbleFollowPet && typeof ctx.getUpdateBubbleAnchorRect === "function"
+    const followPet = isFollowingPet();
+    const anchorRect = followPet && typeof ctx.getUpdateBubbleAnchorRect === "function"
       ? ctx.getUpdateBubbleAnchorRect(petBounds)
       : null;
-    const hitRect = ctx.bubbleFollowPet ? ctx.getHitRectScreen(petBounds) : null;
+    const hitRect = followPet ? ctx.getHitRectScreen(petBounds) : null;
 
     const bounds = computeCompletionBubbleBounds({
-      bubbleFollowPet: ctx.bubbleFollowPet,
+      bubbleFollowPet: followPet,
       width: WIDTH,
       edgeMargin: EDGE_MARGIN,
       gap: GAP,
@@ -271,14 +281,13 @@ module.exports = function initCompletionBubble(ctx) {
 
   function syncVisibility() {
     if (!bubble || bubble.isDestroyed()) return;
-    // Mirror update-bubble's petHidden short-circuit; mini mode is also a form
-    // of "pet is busy doing focused work" where a completion toast would be
-    // noise. The ctx exposes a `miniMode` boolean (existing field name from
-    // main.js, not mini.js's getter).
-    if (ctx.petHidden || (typeof ctx.miniMode === "function" ? ctx.miniMode() : ctx.miniMode)) {
-      bubble.hide();
-      return;
-    }
+    // mini mode is a positioning state ("pet is at the screen edge"), not a
+    // silence preference — same as petHidden (see AGENTS.md "petHidden ≠ DND"
+    // rule). Completion bubbles bypass DND via policy.bypassDnd (see
+    // bubble-policy.js); we don't gate on mini either. miniTransitioning
+    // briefly hides everything during mini enter/exit animations; that
+    // suppression is owned by main.js / mini.js via the bubble lifecycle,
+    // not here.
     bubble.showInactive();
     keepOutOfTaskbar(bubble);
     if (isMac) deferMacFloatingVisibility(ctx, bubble);
