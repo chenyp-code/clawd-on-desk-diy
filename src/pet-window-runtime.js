@@ -748,13 +748,16 @@ function createPetWindowRuntime(options = {}) {
       return;
     }
     const current = getPetWindowBounds();
-    const size = getKeepSizeAcrossDisplays()
-      ? { width: current.width, height: current.height }
-      : getCurrentPixelSize();
-    const clamped = clampToScreenVisual(current.x, current.y, size.width, size.height);
-    const proportionalRecalc = isProportionalMode() && !getKeepSizeAcrossDisplays();
-    if (proportionalRecalc || clamped.x !== current.x || clamped.y !== current.y) {
-      applyPetWindowBounds({ ...clamped, width: size.width, height: size.height });
+    // Display-metrics-changed fires for many reasons (DPI flicker, taskbar
+    // move, multi-monitor plug/unplug, etc.), most of which are spurious from
+    // the user's point of view. Never recompute the size here — the pet would
+    // jump to a new size whenever anything on the display topology changed.
+    // Only act when the pet would actually land off-screen on the new layout.
+    // Drag-end and "send to display" remain the user-driven resize paths, and
+    // keepSizeAcrossDisplays still gates those.
+    const clamped = clampToScreenVisual(current.x, current.y, current.width, current.height);
+    if (clamped.x !== current.x || clamped.y !== current.y) {
+      applyPetWindowBounds({ ...clamped, width: current.width, height: current.height });
       syncHitWin();
       repositionAnchoredSurfaces();
     }
@@ -770,13 +773,15 @@ function createPetWindowRuntime(options = {}) {
       return;
     }
     const current = getPetWindowBounds();
-    const size = getKeepSizeAcrossDisplays()
-      ? { width: current.width, height: current.height }
-      : getCurrentPixelSize();
-    const clamped = clampToScreenVisual(current.x, current.y, size.width, size.height);
-    applyPetWindowBounds({ ...clamped, width: size.width, height: size.height });
-    syncHitWin();
-    repositionAnchoredSurfaces();
+    // Same policy as handleDisplayMetricsChanged: preserve the pet's current
+    // pixel size; only re-clamp the position so the pet stays on-screen if
+    // it was sitting on the now-removed display.
+    const clamped = clampToScreenVisual(current.x, current.y, current.width, current.height);
+    if (clamped.x !== current.x || clamped.y !== current.y) {
+      applyPetWindowBounds({ ...clamped, width: current.width, height: current.height });
+      syncHitWin();
+      repositionAnchoredSurfaces();
+    }
   }
 
   function handleDisplayAdded() {

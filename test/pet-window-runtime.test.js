@@ -430,6 +430,80 @@ describe("pet-window-runtime", () => {
     ]);
   });
 
+  it("preserves pet size on display-metrics-changed when position needs no clamp", () => {
+    // Default harness pet is at (10, 20) size 100x100 — well inside the
+    // 1000x760 work area, so no clamp is needed. With proportional mode +
+    // keepSizeAcrossDisplays off (the default), the old implementation
+    // unconditionally recomputed the size from the proportional ratio and
+    // called setBounds anyway. The pet "suddenly grew" on every spurious
+    // display-metrics-changed event (DPI flicker, taskbar move, etc.).
+    const harness = createRuntime({
+      proportional: true,
+      keepSizeAcrossDisplays: false,
+      currentPixelSize: { width: 200, height: 200 },
+    });
+
+    harness.runtime.handleDisplayMetricsChanged();
+
+    assert.deepStrictEqual(
+      harness.renderWin.calls.filter((call) => call[0] === "setBounds"),
+      []
+    );
+  });
+
+  it("preserves pet size on display-metrics-changed when position does need to clamp", () => {
+    // Pet is stranded off-screen at (5000, 5000). The clamp pulls it back to
+    // (925, 660) on the 1000x760 work area — but the size must stay at the
+    // current 100x100, not jump to the currentPixelSize (200x200) the old
+    // code path would have used.
+    const renderWin = makeWindow({ x: 5000, y: 5000, width: 100, height: 100 });
+    const harness = createRuntime({
+      renderWin,
+      proportional: true,
+      keepSizeAcrossDisplays: false,
+      currentPixelSize: { width: 200, height: 200 },
+    });
+
+    harness.runtime.handleDisplayMetricsChanged();
+
+    assert.deepStrictEqual(
+      harness.renderWin.calls.filter((call) => call[0] === "setBounds"),
+      [["setBounds", { x: 925, y: 660, width: 100, height: 100 }]]
+    );
+  });
+
+  it("preserves pet size on display-removed when position needs no clamp", () => {
+    const harness = createRuntime({
+      proportional: true,
+      keepSizeAcrossDisplays: false,
+      currentPixelSize: { width: 200, height: 200 },
+    });
+
+    harness.runtime.handleDisplayRemoved();
+
+    assert.deepStrictEqual(
+      harness.renderWin.calls.filter((call) => call[0] === "setBounds"),
+      []
+    );
+  });
+
+  it("preserves pet size on display-removed when position does need to clamp", () => {
+    const renderWin = makeWindow({ x: 5000, y: 5000, width: 100, height: 100 });
+    const harness = createRuntime({
+      renderWin,
+      proportional: true,
+      keepSizeAcrossDisplays: false,
+      currentPixelSize: { width: 200, height: 200 },
+    });
+
+    harness.runtime.handleDisplayRemoved();
+
+    assert.deepStrictEqual(
+      harness.renderWin.calls.filter((call) => call[0] === "setBounds"),
+      [["setBounds", { x: 925, y: 660, width: 100, height: 100 }]]
+    );
+  });
+
   it("refreshes mini seam state when a display is added", () => {
     const harness = createRuntime({ miniMode: true });
 
